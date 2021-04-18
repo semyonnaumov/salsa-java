@@ -1,4 +1,4 @@
-package com.naumov.scpool;
+package com.naumov.taskpool.salsa;
 
 import java.util.Collection;
 import java.util.Iterator;

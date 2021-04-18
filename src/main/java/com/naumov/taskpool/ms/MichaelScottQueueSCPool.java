@@ -1,35 +1,36 @@
-package com.naumov.scpool;
+package com.naumov.taskpool.ms;
+
+import com.naumov.taskpool.SCPool;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-// todo check if needs sync
+// todo
 public class MichaelScottQueueSCPool implements SCPool {
     private final ConcurrentLinkedQueue<Object> container = new ConcurrentLinkedQueue<>();
 
-
     @Override
-    public boolean produce(Object item) {
+    public boolean produce(Runnable task) {
         return false;
     }
 
     @Override
-    public void produceForce(Object item) {
+    public void produceForce(Runnable task) {
 
     }
 
     @Override
-    public Object consume() {
-        return container.poll();
+    public Runnable consume() {
+        return null;
     }
 
     @Override
-    public Object steal(SCPool from) {
-        return from.consume();
+    public Runnable steal(SCPool from) {
+        return null;
     }
 
     @Override
     public boolean isEmpty() {
-        return container.isEmpty();
+        return false;
     }
 
     @Override

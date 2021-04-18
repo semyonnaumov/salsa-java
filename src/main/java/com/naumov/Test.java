@@ -1,29 +1,36 @@
 package com.naumov;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.ExecutorService;
+
 public class Test {
 
     public static void main(String[] args) {
-        Pool pool = new SalsaPool();
+        final int NUMBER_OF_PRODUCERS = 2;
+        final int NUMBER_OF_CONSUMERS = 2;
 
-        Thread producer1 = new Thread(() -> {
-            // do some producing
-            while (true) {
-                Object item = new Object();
-                pool.put(item);
+        ExecutorService executorService = MyExecutors.newSalsaThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
+        // since here executorService is fully initialized
+
+        Runnable standardTask = () -> {
+            for (int i = 0; i < 1000; i++) {
+                System.out.printf("Task, worker = %s, iter = %i\n" + i, Thread.currentThread().getName(), i);
             }
-        });
+        };
 
-        Thread consumer1 = new Thread(() -> {
-            // do some consuming
-//            org.openjdk.jmh.infra.Blackhole blackHole = new org.openjdk.jmh.infra.Blackhole(); // todo add jmh
-            while (true) {
-                Object task = pool.get();
-//                blackHole.consume(task);
-            }
-        });
+        // init producers
+        List<Thread> producers = new ArrayList<>();
+        for (int i = 0; i < NUMBER_OF_PRODUCERS; i++) {
+            Thread producer = new Thread(() -> {
+                while (true) {
+                    executorService.submit(standardTask);
+                }
+            });
+            producers.add(producer);
+        }
 
-// правильно стартовать потоки
-        consumer1.start();
-        producer1.start();
+        // start producing
+        producers.forEach(Thread::start);
     }
 }
