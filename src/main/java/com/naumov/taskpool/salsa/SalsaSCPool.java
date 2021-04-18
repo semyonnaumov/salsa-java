@@ -168,7 +168,7 @@ public class SalsaSCPool implements SCPool {
         }
 
         // the chunk has been stolen, CAS the last task and go away
-        boolean success = task != TAKEN && Chunk.AVH.compareAndSet(chunk.getTasks(), node.getIdx(), task, TAKEN);
+        boolean success = !TAKEN.equals(task) && Chunk.AVH.compareAndSet(chunk.getTasks(), node.getIdx(), task, TAKEN);
 
         if (success) checkLast(node);
         currentNode = null;
