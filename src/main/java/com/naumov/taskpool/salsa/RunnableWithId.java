@@ -11,6 +11,7 @@ public class RunnableWithId implements Runnable {
     private static final AtomicLong idCounter = new AtomicLong(Long.MIN_VALUE + 1); // todo deal with possible overflow
     private final long id;
     private final Runnable task;
+    private volatile boolean isCompleted = false; // for correctness testing purposes only
 
     private RunnableWithId() {
         // for the TAKEN only
@@ -25,8 +26,13 @@ public class RunnableWithId implements Runnable {
 
     @Override
     public void run() {
+        if (isCompleted) {
+            throw new IllegalStateException("Thread [" + Thread.currentThread() + "] + is trying to execute " + this + ", which has already been executed!");
+        }
+
         System.out.println("Thread [" + Thread.currentThread() + "] + is executing " + this);
         this.task.run();
+        this.isCompleted = true;
     }
 
     @Override

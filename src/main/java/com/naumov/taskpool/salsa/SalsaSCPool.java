@@ -7,22 +7,24 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ThreadLocalRandom;
 
 import static com.naumov.taskpool.salsa.RunnableWithId.TAKEN;
 
 public class SalsaSCPool implements SCPool {
+    private final int consumerId;
     private final int chunkSize;
-    private final int scPoolOwnerId;
+    private final int maxNProducers;
     private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // some sync-free on get() structure
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
-    private final ThreadLocal<ConsumerContext> cContextThreadLocal = ThreadLocal.withInitial(() -> null);
     private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks, initially empty
     private Node currentNode = null; // current node to work with, initially null // todo volatile?
 
-    public SalsaSCPool(int scPoolOwnerId, int chunkSize, int maxPCount) {
-        this.scPoolOwnerId = scPoolOwnerId;
+    public SalsaSCPool(int consumerId, int chunkSize, int maxNProducers) {
+        this.consumerId = consumerId;
         this.chunkSize = chunkSize;
-        this.chunkLists = initChunkLists(maxPCount);
+        this.maxNProducers = maxNProducers;
+        this.chunkLists = initChunkLists(maxNProducers);
     }
 
     /**
@@ -34,14 +36,6 @@ public class SalsaSCPool implements SCPool {
         }
 
         pContextThreadLocal.set(new ProducerContext(pId));
-    }
-
-    void bindConsumer(int cId) {
-        if (cContextThreadLocal.get() != null) {
-            throw new UnsupportedOperationException("Trying to bind consumer " + cId + " that is already bound");
-        }
-
-        cContextThreadLocal.set(new ConsumerContext(cId));
     }
 
     // todo check
@@ -63,12 +57,6 @@ public class SalsaSCPool implements SCPool {
     private void checkProducerRegistration(String from) {
         if (pContextThreadLocal.get() == null) {
             throw new IllegalStateException("Calling " + from + " method with null pContextThreadLocal.");
-        }
-    }
-
-    private void checkConsumerRegistration(String from) {
-        if (cContextThreadLocal.get() == null) {
-            throw new IllegalStateException("Calling " + from + " method with null cContextThreadLocal.");
         }
     }
 
@@ -112,7 +100,7 @@ public class SalsaSCPool implements SCPool {
         if (newChunk == null) {
             if (!force) return false;
 
-            newChunk = new Chunk(chunkSize, scPoolOwnerId);
+            newChunk = new Chunk(chunkSize, consumerId);
         }
 
         Node node = new Node(newChunk);
@@ -124,9 +112,6 @@ public class SalsaSCPool implements SCPool {
 
     @Override
     public Runnable consume() {
-        checkConsumerRegistration("consume");
-        int consumerId = cContextThreadLocal.get().getConsumerId();
-
         if (currentNode != null) { // common case
             Runnable task = takeTask(currentNode);
             if (task != null) return task;
@@ -150,8 +135,6 @@ public class SalsaSCPool implements SCPool {
     }
 
     private Runnable takeTask(Node node) {
-        int consumerId = cContextThreadLocal.get().getConsumerId();
-
         Chunk chunk = node.getChunk();
         if (chunk == null) return null; // this chunk has been stolen
 
@@ -188,10 +171,108 @@ public class SalsaSCPool implements SCPool {
         }
     }
 
+    /**
+     * Called by pool owner to steal a task (and a chunk, holding it) from another consumer
+     *
+     * @param otherSCPool other's consumer pool
+     * @return stolen task or {@code null}
+     */
     @Override
-    public Runnable steal(SCPool from) {
-        checkConsumerRegistration("consume");
-        // todo
+    public Runnable steal(SCPool otherSCPool) {
+
+        Node prevNode = getNode(otherSCPool); // todo
+        if (prevNode == null) return null; // no chunks found
+
+        Chunk chunk = prevNode.getChunk();
+        if (chunk == null) return null;
+
+        int prevIdx = prevNode.getIdx();
+        if (prevIdx + 1 == chunkSize || chunk.getTasks()[prevIdx + 1] == null) return null;
+
+        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(maxNProducers + 1);
+
+        myStealList.add(prevNode); // make it stealable from my list
+        if (!chunk.getOwner().compareAndSet(((SalsaSCPool) otherSCPool).consumerId, consumerId)) {
+            myStealList.remove(prevNode); // failed to steal, remove last
+        }
+
+        int idx = prevNode.getIdx();
+        if (idx + 1 == chunkSize) { // chunk is empty
+            myStealList.remove(prevNode);
+            return null;
+        }
+
+        Runnable task = chunk.getTasks()[idx + 1];
+        if (task != null) { // found the task
+            if (chunk.getOwner().get() != consumerId && idx != prevIdx) {
+                myStealList.remove(prevNode);
+                return null;
+            }
+            idx++;
+        }
+
+        Node newNode = null; // make snapshot copy
+        try {
+            newNode = prevNode.clone();
+        } catch (CloneNotSupportedException e) {
+            e.printStackTrace();
+        }
+        newNode.setIdx(idx);
+
+        myStealList.remove(prevNode);
+        myStealList.add(newNode);
+
+        prevNode.setChunk(null); // remove chunk from consumer's list
+
+        // done stealing chunk, take one task from it
+        if (task == null) return null; // still no task at idx
+        if (TAKEN.equals(task) || !Chunk.AVH.compareAndSet(chunk.getTasks(), idx, task, TAKEN)) task = null;
+
+        checkLast(newNode);
+
+        if (chunk.getOwner().get() == consumerId) currentNode = newNode;
+        return task;
+    }
+
+    /**
+     * Called to teal a chunk from the scPool, other than that of current consumer thread.
+     * todo: This method to be subjected to performance tuning via best traversal search
+     *
+     * @param otherSCPool other consumer's scPool
+     * @return found node
+     */
+    private Node getNode(SCPool otherSCPool) {
+        ThreadLocalRandom random = ThreadLocalRandom.current();
+        int startId = random.nextInt(maxNProducers + 1);
+
+        // traverse all entries from a random start circularly to find not empty node
+        for (int i = startId; i <= maxNProducers; i++) {
+            Node res = scanChunkListAtIndex(otherSCPool, i);
+            if (res != null) return res;
+        }
+
+        for (int i = 0; i < startId; i++) {
+            Node res = scanChunkListAtIndex(otherSCPool, i);
+            if (res != null) return res;
+        }
+
+        return null;
+    }
+
+    /**
+     * For using only in {@link SalsaSCPool#getNode(SCPool)}
+     */
+    private Node scanChunkListAtIndex(SCPool scPool, int i) {
+        SomeSingleWriterMultiReaderList<Node> nodes = ((SalsaSCPool) scPool).chunkLists.get(i);
+        if (!nodes.isEmpty()) {
+            // make a snapshot to iterate through
+            CopyOnWriteArrayList<Node> snapshot = new CopyOnWriteArrayList<>(nodes);
+            for (Node node : snapshot) {
+                Chunk chunk = node.getChunk();
+                if (node.getIdx() != -1 && node.getIdx() + 1 != chunkSize && chunk != null) return node; // found not empty chunk
+            }
+        }
+
         return null;
     }
 
@@ -242,18 +323,6 @@ public class SalsaSCPool implements SCPool {
 
         public void setProdIdx(int prodIdx) {
             this.prodIdx = prodIdx;
-        }
-    }
-
-    private static class ConsumerContext {
-        private final int consumerId;
-
-        private ConsumerContext(int consumerId) {
-            this.consumerId = consumerId;
-        }
-
-        public int getConsumerId() {
-            return consumerId;
         }
     }
 }

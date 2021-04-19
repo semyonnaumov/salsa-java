@@ -1,12 +1,17 @@
 package com.naumov.taskpool.salsa;
 
-public class Node {
-    private Chunk chunk;
-    private int idx = -1;
-    private Node next = null; // todo delete after using SomeSingleWriterMultiReaderList
+public class Node implements Cloneable {
+    private volatile Chunk chunk; // todo volatile?
+    private volatile int idx = -1; // todo volatile?
 
     public Node(Chunk chunk) {
         this.chunk = chunk;
+    }
+
+    // only for cloning
+    private Node(Chunk chunk, int idx) {
+        this.chunk = chunk;
+        this.idx = idx;
     }
 
     public Chunk getChunk() {
@@ -25,11 +30,18 @@ public class Node {
         this.idx = idx;
     }
 
-    public Node getNext() {
-        return next;
+    @Override
+    public Node clone() throws CloneNotSupportedException {
+        // todo implement wisely
+        super.clone();
+        return new Node(chunk.clone(), idx);
     }
 
-    public void setNext(Node next) {
-        this.next = next;
+    @Override
+    public String toString() {
+        return "Node{" +
+                "chunk=" + chunk +
+                ", idx=" + idx +
+                '}';
     }
 }

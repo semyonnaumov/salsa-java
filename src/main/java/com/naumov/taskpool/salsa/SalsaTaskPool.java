@@ -95,11 +95,11 @@ public class SalsaTaskPool implements TaskPool {
 
     private int initConsumer() {
         int id = tryInitId(cCount, nConsumers, false);
+
         // all sc pools must be created up until this moment
         SalsaSCPool myPool = allSCPools.get(id);
-        // bind SCPool to the consumer
+        // bind consumer to his SCPool
         cSCPoolThreadLocal.set(myPool);
-        myPool.bindConsumer(id);
 
         cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools));
         cAccessListThreadLocal.get().remove(id); // remove consumer's own SCPool
@@ -116,7 +116,7 @@ public class SalsaTaskPool implements TaskPool {
             }
         } while (!count.compareAndSet(currentCount, currentCount + 1) && !Thread.currentThread().isInterrupted());
 
-        return currentCount + 1;
+        return currentCount;
     }
 
     @Override
