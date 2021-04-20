@@ -4,124 +4,127 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.ListIterator;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
- * Draft for read sync-free list.
+ * Mock for read sync-free list.
  * @param <E>
  */
 public class SomeSingleWriterMultiReaderList<E> implements List<E> {
+    private final CopyOnWriteArrayList<E> it = new CopyOnWriteArrayList<>();
+
     @Override
     public int size() {
-        return 0;
+        return it.size();
     }
 
     @Override
     public boolean isEmpty() {
-        return false;
+        return it.isEmpty();
     }
 
     @Override
     public boolean contains(Object o) {
-        return false;
+        return it.contains(o);
     }
 
     @Override
     public Iterator<E> iterator() {
-        return null;
+        return it.iterator();
     }
 
     @Override
     public Object[] toArray() {
-        return new Object[0];
+        return it.toArray();
     }
 
     @Override
     public <T> T[] toArray(T[] a) {
-        return null;
+        return it.toArray(a);
     }
 
     @Override
     public boolean add(E e) {
-        return false;
+        return it.add(e);
     }
 
     @Override
     public boolean remove(Object o) {
-        return false;
+        return it.remove(o);
     }
 
     @Override
     public boolean containsAll(Collection<?> c) {
-        return false;
+        return it.containsAll(c);
     }
 
     @Override
     public boolean addAll(Collection<? extends E> c) {
-        return false;
+        return it.addAll(c);
     }
 
     @Override
     public boolean addAll(int index, Collection<? extends E> c) {
-        return false;
+        return it.addAll(index, c);
     }
 
     @Override
     public boolean removeAll(Collection<?> c) {
-        return false;
+        return it.removeAll(c);
     }
 
     @Override
     public boolean retainAll(Collection<?> c) {
-        return false;
+        return it.retainAll(c);
     }
 
     @Override
     public void clear() {
-
+        it.clear();
     }
 
     @Override
     public E get(int index) {
-        return null;
+        return it.get(index);
     }
 
     @Override
     public E set(int index, E element) {
-        return null;
+        return it.set(index, element);
     }
 
     @Override
     public void add(int index, E element) {
-
+        it.add(index, element);
     }
 
     @Override
     public E remove(int index) {
-        return null;
+        return it.remove(index);
     }
 
     @Override
     public int indexOf(Object o) {
-        return 0;
+        return it.indexOf(o);
     }
 
     @Override
     public int lastIndexOf(Object o) {
-        return 0;
+        return it.lastIndexOf(o);
     }
 
     @Override
     public ListIterator<E> listIterator() {
-        return null;
+        return it.listIterator();
     }
 
     @Override
     public ListIterator<E> listIterator(int index) {
-        return null;
+        return it.listIterator(index);
     }
 
     @Override
     public List<E> subList(int fromIndex, int toIndex) {
-        return null;
+        return it.subList(fromIndex, toIndex);
     }
 }

@@ -22,7 +22,7 @@ public class SalsaTaskPool implements TaskPool {
         this.nConsumers = nConsumers;
 
         for (int cId = 0; cId < nConsumers; cId++) {
-            SalsaSCPool scPool = new SalsaSCPool(cId, chunkSize, maxNProducers);
+            SalsaSCPool scPool = new SalsaSCPool(cId, chunkSize, maxNProducers, nConsumers);
             allSCPools.add(scPool); // create sc pools, but not bind to consumers yet
         }
     }
@@ -59,9 +59,8 @@ public class SalsaTaskPool implements TaskPool {
             throw new UnsupportedOperationException("Method get() was called by a thread, already registered as producer");
         }
 
+        SalsaSCPool myPool = cSCPoolThreadLocal.get();
         while (true) {
-            SalsaSCPool myPool = cSCPoolThreadLocal.get();
-
             // first try to get an task from a local pool
             Runnable task = myPool.consume();
             if (task != null) return task;
@@ -121,6 +120,13 @@ public class SalsaTaskPool implements TaskPool {
 
     @Override
     public boolean isEmpty() {
-        return false; // todo implement later
+        for (int i = 0; i < nConsumers; i++) {
+            for (SalsaSCPool scPool : allSCPools) {
+                if (i == 0) scPool.setIndicator(cIdThreadLocal.get());
+                if (!scPool.isEmpty()) return false;
+                if (!scPool.checkIndicator(cIdThreadLocal.get())) return false;
+            }
+        }
+        return true;
     }
 }

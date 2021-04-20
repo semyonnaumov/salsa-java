@@ -1,13 +1,9 @@
 package com.naumov.taskpool.salsa;
 
-import java.lang.invoke.MethodHandles;
-import java.lang.invoke.VarHandle;
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Chunk implements Cloneable {
-    static final VarHandle AVH = MethodHandles.arrayElementVarHandle(Runnable[].class); // to perform CAS
-
     private final AtomicInteger owner; // to perform CAS
     private final int chunkSize;
     private final Runnable[] tasks;
