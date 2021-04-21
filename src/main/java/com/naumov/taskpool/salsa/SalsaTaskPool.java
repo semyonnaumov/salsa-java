@@ -120,6 +120,8 @@ public class SalsaTaskPool implements TaskPool {
 
     @Override
     public boolean isEmpty() {
+        // todo currently cannot be called by a producer
+
         for (int i = 0; i < nConsumers; i++) {
             for (SalsaSCPool scPool : allSCPools) {
                 if (i == 0) scPool.setIndicator(cIdThreadLocal.get());
