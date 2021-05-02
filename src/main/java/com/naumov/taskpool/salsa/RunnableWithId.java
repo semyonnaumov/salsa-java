@@ -1,5 +1,7 @@
 package com.naumov.taskpool.salsa;
 
+import com.naumov.ThreadUtil;
+
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -30,7 +32,7 @@ public class RunnableWithId implements Runnable {
             throw new IllegalStateException("Thread [" + Thread.currentThread() + "] + is trying to execute " + this + ", which has already been executed!");
         }
 
-        System.out.println("Thread [" + Thread.currentThread() + "] + is executing " + this);
+        ThreadUtil.logAction("starts executing " + this);
         this.task.run();
         this.isCompleted = true;
     }

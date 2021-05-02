@@ -148,7 +148,7 @@ public class SalsaSCPool implements SCPool {
 
         if (chunk.getOwner().get() != consumerId) return null;
 
-        node.setIdx(node.getIdx()); // tell the world you're going to take a task from idx // todo atomicity?
+        node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx // todo atomicity?
         if (chunk.getOwner().get() == consumerId) { // common case
             int currentIndex = node.getIdx();
             Runnable next = currentIndex + 1 < chunkSize ? chunk.getTasks()[currentIndex + 1] : null; // for isEmpty()

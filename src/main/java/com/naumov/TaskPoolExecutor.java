@@ -19,7 +19,7 @@ public class TaskPoolExecutor implements ExecutorService {
         // init consumers
         List<Worker> workers = new ArrayList<>();
         for (int i = 0; i < nConsumers; i++) {
-            Worker consumer = new Worker();
+            Worker consumer = new Worker("Consumer-" + i);
             workers.add(consumer);
         }
         this.consumers =  workers;
@@ -31,11 +31,17 @@ public class TaskPoolExecutor implements ExecutorService {
      * Consumer
      */
     class Worker extends Thread {
+
+        public Worker(String name) {
+            super(name);
+        }
+
         @Override
         public void run() {
             while (!this.isInterrupted()) {
                 Runnable task = taskPool.get();
-                task.run();
+                ThreadUtil.logAction("extracted task: " + task);
+                if (task != null) task.run(); // todo introduce exponential backoff here? (when pool is empty)
             }
         }
     }

@@ -29,14 +29,14 @@ public class SalsaTaskPool implements TaskPool {
 
     @Override
     public void put(Runnable task) {
-        int pId; // current producerId;
-        if (isProducer() && !isConsumer()) { // already registered
-            pId = pIdThreadLocal.get();
-        } else if (!isConsumer()) { // new thread came for the first time
-            pId = initProducer();
-        } else { // is consumer
+        if (!isProducer() && !isConsumer()) {
+            // need to register a new producer
+            initProducer();
+        } else if (isConsumer()) {
+            // it is a consumer
             throw new UnsupportedOperationException("Method put(...) was called by a thread, already registered as consumer");
         }
+        // registered producer
 
         // produce to the pool by the order of the access list
         for (SalsaSCPool scPool: pAccessListThreadLocal.get()) {
@@ -50,16 +50,17 @@ public class SalsaTaskPool implements TaskPool {
 
     @Override
     public Runnable get() {
-        int cId; // current consumerId;
-        if (isConsumer() && !isProducer()) { // already registered
-            cId = cIdThreadLocal.get();
-        } else if (!isProducer()) { // new thread came for the first time
-            cId = initConsumer();
-        } else { // is producer
+        if (!isConsumer() && !isProducer()) {
+            // need to register a new consumer
+            initConsumer();
+        } else if (isProducer()) {
+            // it is a producer
             throw new UnsupportedOperationException("Method get() was called by a thread, already registered as producer");
         }
 
+        // registered consumer
         SalsaSCPool myPool = cSCPoolThreadLocal.get();
+
         while (true) {
             // first try to get an task from a local pool
             Runnable task = myPool.consume();
@@ -84,16 +85,18 @@ public class SalsaTaskPool implements TaskPool {
         return cIdThreadLocal.get() != null;
     }
 
-    private int initProducer() {
+    private void initProducer() {
         int id = tryInitId(pCount, maxNProducers, true);
+        pIdThreadLocal.set(id);
+
         // all sc pools must be created up until this moment
         pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
         pAccessListThreadLocal.get().forEach(scPool -> scPool.bindProducer(id)); // bind producer to all SCPools here
-        return id;
     }
 
-    private int initConsumer() {
+    private void initConsumer() {
         int id = tryInitId(cCount, nConsumers, false);
+        cIdThreadLocal.set(id);
 
         // all sc pools must be created up until this moment
         SalsaSCPool myPool = allSCPools.get(id);
@@ -102,7 +105,6 @@ public class SalsaTaskPool implements TaskPool {
 
         cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools));
         cAccessListThreadLocal.get().remove(id); // remove consumer's own SCPool
-        return id;
     }
 
     private int tryInitId(AtomicInteger count, int max, boolean isProducer) {

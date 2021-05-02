@@ -4,7 +4,7 @@ import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Chunk implements Cloneable {
-    private final AtomicInteger owner; // to perform CAS
+    private final AtomicInteger owner; // atomic to perform CAS
     private final int chunkSize;
     private final Runnable[] tasks;
 

@@ -3,6 +3,7 @@ package com.naumov;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ThreadLocalRandom;
 
 public class Test {
 
@@ -14,9 +15,11 @@ public class Test {
         // since here executorService is fully initialized
 
         Runnable standardTask = () -> {
+            int a = ThreadLocalRandom.current().nextInt(1000);
             for (int i = 0; i < 1000; i++) {
-                System.out.printf("Task, worker = %s, iter = %i\n" + i, Thread.currentThread().getName(), i);
+                a += i;
             }
+            ThreadUtil.logAction("exec task, res = " + a);
         };
 
         // init producers
@@ -24,9 +27,10 @@ public class Test {
         for (int i = 0; i < NUMBER_OF_PRODUCERS; i++) {
             Thread producer = new Thread(() -> {
                 while (!Thread.currentThread().isInterrupted()) {
+                    ThreadUtil.logAction("submit task");
                     executorService.submit(standardTask);
                 }
-            });
+            }, "Producer-" + i);
             producers.add(producer);
         }
 
