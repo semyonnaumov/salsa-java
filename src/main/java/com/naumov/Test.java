@@ -23,7 +23,7 @@ public class Test {
         List<Thread> producers = new ArrayList<>();
         for (int i = 0; i < NUMBER_OF_PRODUCERS; i++) {
             Thread producer = new Thread(() -> {
-                while (true) {
+                while (!Thread.currentThread().isInterrupted()) {
                     executorService.submit(standardTask);
                 }
             });
