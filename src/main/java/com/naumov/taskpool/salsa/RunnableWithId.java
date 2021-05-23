@@ -37,6 +37,7 @@ public class RunnableWithId implements Runnable {
         this.isCompleted = true;
     }
 
+    // todo maybe no need to override this since reference comparison may be enough?
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -1,8 +1,8 @@
 package com.naumov.taskpool.salsa;
 
 public class Node implements Cloneable {
-    private volatile Chunk chunk; // todo volatile?
-    private volatile int idx = -1; // todo volatile?
+    private volatile Chunk chunk;
+    private volatile int idx = -1;
 
     public Node(Chunk chunk) {
         this.chunk = chunk;

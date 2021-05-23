@@ -6,15 +6,18 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import com.naumov.taskpool.TaskPool;
+import com.naumov.taskpool.salsa.annot.PermitAll;
 
 public class SalsaTaskPool implements TaskPool {
     private static final int MAX_PRODUCERS = 32768;
     private static final int MAX_CONSUMERS = 32768;
 
-    // shared pool state
+    // unmodifiable shared pool state
     private final int maxNProducers;
     private final int nConsumers;
     private final CopyOnWriteArrayList<SalsaSCPool> allSCPools;
+
+    // shared pool state
     private final AtomicInteger pCount = new AtomicInteger(0); // registered producers count
     private final AtomicInteger cCount = new AtomicInteger(0); // registered consumers count
 
@@ -84,6 +87,7 @@ public class SalsaTaskPool implements TaskPool {
     }
 
     @Override
+    @PermitAll
     public boolean isEmpty() {
         // todo currently cannot be called by a producer - fix
         checkThreadRegistered(false);

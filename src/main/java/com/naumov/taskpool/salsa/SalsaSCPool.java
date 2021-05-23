@@ -1,6 +1,7 @@
 package com.naumov.taskpool.salsa;
 
 import com.naumov.taskpool.SCPool;
+import com.naumov.taskpool.salsa.annot.*;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -14,15 +15,20 @@ import static com.naumov.taskpool.salsa.VHUtil.RUNNABLE_ARRAY_VH;
 
 public class SalsaSCPool implements SCPool {
 
-    // shared state
+    // unshared owner-local state
+    private volatile Node currentNode = null; // node for owner to work with
+
+    // unmodifiable shared state
     private final int consumerId;
     private final int chunkSize;
     private final int maxNProducers;
     private final int nConsumers;
-    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // todo some sync-free on get() structure
-    private final boolean[] emptyIndicator;
+
+    // shared state
+    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // todo introduce some sync-free on get() thread-safe structure
+    private final boolean[] emptyIndicator; // shared among all consumers
     private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks, initially empty
-    private volatile Node currentNode = null; // current node to work with, initially null
+                                                                          // shared among owner and producers
 
     // ThreadLocals
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
@@ -53,8 +59,9 @@ public class SalsaSCPool implements SCPool {
     }
 
     /**
-     * Init thread local for the new producer
+     * Init ThreadLocal for the new producer.
      */
+    @PermitProducers
     void bindProducer(int pId) {
         if (pContextThreadLocal.get() != null) {
             throw new UnsupportedOperationException("Trying to bind producer " + pId + " that is already bound");
@@ -64,23 +71,27 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
+    @PermitProducers
     public boolean produce(Runnable task) {
         checkProducerRegistration("produce");
         return insert(new RunnableWithId(task), false); // producing only as RunnableWithId wrapper
     }
 
     @Override
+    @PermitProducers
     public void produceForce(Runnable task) {
         checkProducerRegistration("produceForce");
         insert(new RunnableWithId(task), true); // producing only as RunnableWithId wrapper
     }
 
+    @PermitProducers
     private void checkProducerRegistration(String from) {
         if (pContextThreadLocal.get() == null) {
             throw new IllegalStateException("Calling " + from + " method with null pContextThreadLocal.");
         }
     }
 
+    @PermitProducers
     private boolean insert(Runnable task, boolean force) {
         ProducerContext producerContext = pContextThreadLocal.get();
 
@@ -100,6 +111,7 @@ public class SalsaSCPool implements SCPool {
         return true;
     }
 
+    @PermitProducers
     private boolean getChunk(boolean force) {
         ProducerContext producerContext = pContextThreadLocal.get();
 
@@ -120,6 +132,7 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
+    @PermitOwner
     public Runnable consume() {
         if (currentNode != null) { // common case
             Runnable task = takeTask(currentNode);
@@ -143,47 +156,60 @@ public class SalsaSCPool implements SCPool {
         return null;
     }
 
+    /**
+     * Called only by scPool owner
+     * @param node some node to retrieve a task from
+     * @return retrieved task or {@code null}
+     */
+    @PermitOwner
     private Runnable takeTask(Node node) {
         Chunk chunk = node.getChunk();
-        if (chunk == null) return null; // this chunk has been stolen
+        if (chunk == null) return null; // chunk has been stolen from this node
 
         Runnable task = chunk.getTasks()[node.getIdx() + 1];
-        if (task == null) return null; // no inserted tasks
+        if (task == null) return null; // no tasks in this chunk
 
         if (chunk.getOwner().get() != consumerId) return null;
 
-        node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx // todo atomicity?
+        node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx
+                                        // atomicity is not needed since only the owner of the SCPool can update idx
         if (chunk.getOwner().get() == consumerId) { // common case
-            int currentIndex = node.getIdx();
-            Runnable next = currentIndex + 1 < chunkSize ? chunk.getTasks()[currentIndex + 1] : null; // for isEmpty()
-            chunk.getTasks()[currentIndex] = TAKEN;
+            int idx = node.getIdx();
+            Runnable next = idx + 1 < chunkSize ? chunk.getTasks()[idx + 1] : null; // get next task for isEmpty()
+            chunk.getTasks()[idx] = TAKEN;
             checkLast(node, next);
             return task;
         }
 
         // the chunk has been stolen, CAS the last task and go away
-        int currentIndex = node.getIdx();
-        Runnable next = currentIndex + 1 < chunkSize ? chunk.getTasks()[currentIndex + 1] : null; // for isEmpty()
-        boolean success = !TAKEN.equals(task) && RUNNABLE_ARRAY_VH.compareAndSet(chunk.getTasks(), currentIndex, task, TAKEN);
+        int idx = node.getIdx();
+        Runnable next = idx + 1 < chunkSize ? chunk.getTasks()[idx + 1] : null; // get next task for isEmpty()
+        boolean success = !TAKEN.equals(task) && RUNNABLE_ARRAY_VH.compareAndSet(chunk.getTasks(), idx, task, TAKEN);
 
         if (success) checkLast(node, next);
         currentNode = null;
         return success ? task : null;
     }
 
-    private void checkLast(Node node, Runnable next) {
+    /**
+     * Only owner of the current pool can call this method.
+     * @param node node to check for being completely used up
+     * @param runnable task to
+     */
+    @PermitOwner
+    private void checkLast(Node node, Runnable runnable) {
         if (node.getIdx() + 1 == chunkSize) { // finished the chunk
             Chunk usedChunk = node.getChunk();
 
             // recycle chunk and return to the chunk pool
-            usedChunk.clear();
+            usedChunk.clear(); // todo check this
             chunkPool.add(usedChunk);
             node.setChunk(null);
             currentNode = null;
             clearIndicator();
         }
 
-        if (next == null) clearIndicator();
+        if (runnable == null) clearIndicator();
     }
 
     /**
@@ -193,9 +219,10 @@ public class SalsaSCPool implements SCPool {
      * @return stolen task or {@code null}
      */
     @Override
+    @PermitOwner
     public Runnable steal(SCPool otherSCPool) {
 
-        Node prevNode = getNode(otherSCPool);
+        Node prevNode = getNode((SalsaSCPool) otherSCPool);
         if (prevNode == null) return null; // no chunks found
 
         Chunk chunk = prevNode.getChunk();
@@ -254,13 +281,14 @@ public class SalsaSCPool implements SCPool {
     }
 
     /**
-     * Called to teal a chunk from the scPool, other than that of current consumer thread.
+     * Called to steal a chunk from the scPool, other than that of current consumer thread.
      * todo: This method to be subjected to performance tuning via best traversal search
      *
-     * @param otherSCPool other consumer's scPool
+     * @param otherSCPool other consumer's {@link SalsaSCPool}
      * @return found node
      */
-    private Node getNode(SCPool otherSCPool) {
+    @PermitOwner
+    private Node getNode(SalsaSCPool otherSCPool) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         int startId = random.nextInt(maxNProducers + 1);
 
@@ -279,16 +307,21 @@ public class SalsaSCPool implements SCPool {
     }
 
     /**
-     * For using only in {@link SalsaSCPool#getNode(SCPool)}
+     * Used to search for a node with possibly not empty {@link Chunk}.
+     * For using only in {@link SalsaSCPool#getNode(SalsaSCPool)}.
+     *
+     * @param otherSCPool other consumer's {@link SalsaSCPool}
+     * @param i chunk list index to look for a chunk
      */
-    private Node scanChunkListAtIndex(SCPool scPool, int i) {
-        SomeSingleWriterMultiReaderList<Node> nodes = ((SalsaSCPool) scPool).chunkLists.get(i);
-        if (!nodes.isEmpty()) {
+    @PermitProducers
+    private Node scanChunkListAtIndex(SalsaSCPool otherSCPool, int i) {
+        SomeSingleWriterMultiReaderList<Node> nodes = otherSCPool.chunkLists.get(i);
+        if (!nodes.isEmpty()) { // todo consider performance issues
             // make a snapshot to iterate through
             CopyOnWriteArrayList<Node> snapshot = new CopyOnWriteArrayList<>(nodes);
             for (Node node : snapshot) {
                 Chunk chunk = node.getChunk();
-                if (node.getIdx() != -1 && node.getIdx() + 1 != chunkSize && chunk != null) return node; // found not empty chunk
+                if (chunk != null && node.getIdx() + 1 != chunkSize) return node; // found chunk possibly with tasks
             }
         }
 
@@ -296,6 +329,7 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
+    @PermitAll
     public boolean isEmpty() {
         for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
@@ -303,7 +337,7 @@ public class SalsaSCPool implements SCPool {
                 int idx = node.getIdx();
                 for (int i = idx + 1; i < chunkSize; i++) {
                     Runnable task = node.getChunk().getTasks()[i];
-                    if (task != null && task != TAKEN) return false;
+                    if (task != null && !TAKEN.equals(task)) return false;
                 }
             }
         }
@@ -311,15 +345,18 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
+    @PermitAll
     public void setIndicator(int consumerId) {
         VHUtil.BOOLEAN_ARRAY_VH.compareAndSet(this.emptyIndicator, consumerId, false, true);
     }
 
     @Override
+    @PermitAll
     public boolean checkIndicator(int consumerId) {
         return this.emptyIndicator[consumerId]; // todo need atomic/volatile?
     }
 
+    @PermitOwner
     private void clearIndicator() {
         for (int i = 0; i < nConsumers; i++) {
             this.emptyIndicator[i] = false; // todo need volatile?
