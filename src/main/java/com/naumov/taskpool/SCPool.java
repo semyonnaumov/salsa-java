@@ -1,7 +1,7 @@
 package com.naumov.taskpool;
 
 /**
- * Single-consumer pool abstraction. Only owner of the pool can normally can consume retrieve
+ * Single-consumer pool abstraction. Only owner of the pool normally can retrieve tasks
  */
 public interface SCPool {
     /**

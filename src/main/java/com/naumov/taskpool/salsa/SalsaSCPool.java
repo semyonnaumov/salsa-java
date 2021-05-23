@@ -327,9 +327,9 @@ public class SalsaSCPool implements SCPool {
         private int prodIdx;
 
         public ProducerContext(int producerId) {
+            this.producerId = producerId;
             this.chunk = null;
             this.prodIdx = 0;
-            this.producerId = producerId;
         }
 
         public int getProducerId() {

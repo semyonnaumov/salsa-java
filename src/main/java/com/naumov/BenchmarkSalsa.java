@@ -30,7 +30,7 @@ public class BenchmarkSalsa {
         @Param({"1", "2"})
         public int parallelism;
 
-        @Param({"SALSA", "FJP"})
+        @Param({"SALSA", "FJP", "TPE"})
         public String type;
 
         ExecutorService service;
@@ -39,8 +39,10 @@ public class BenchmarkSalsa {
         public void up() {
             if ("SALSA".equals(type)) {
                 service = MyExecutors.newSalsaThreadPool(10, parallelism);
-            } else {
+            } else if ("FJP".equals(type)) {
                 service = Executors.newWorkStealingPool(parallelism);
+            } else {
+                service = Executors.newFixedThreadPool(parallelism);
             }
         }
 
