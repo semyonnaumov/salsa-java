@@ -13,41 +13,34 @@ import static com.naumov.taskpool.salsa.RunnableWithId.TAKEN;
 import static com.naumov.taskpool.salsa.VHUtil.RUNNABLE_ARRAY_VH;
 
 public class SalsaSCPool implements SCPool {
+
+    // shared state
     private final int consumerId;
     private final int chunkSize;
     private final int maxNProducers;
     private final int nConsumers;
-    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // some sync-free on get() structure
-    private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
-    private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks, initially empty
-    private volatile Node currentNode = null; // current node to work with, initially null // todo volatile?
+    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // todo some sync-free on get() structure
     private final boolean[] emptyIndicator;
+    private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks, initially empty
+    private volatile Node currentNode = null; // current node to work with, initially null
+
+    // ThreadLocals
+    private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
 
     public SalsaSCPool(int consumerId, int chunkSize, int maxNProducers, int nConsumers) {
         this.consumerId = consumerId;
         this.chunkSize = chunkSize;
         this.maxNProducers = maxNProducers;
         this.nConsumers = nConsumers;
-        this.emptyIndicator = new boolean[nConsumers];
         this.chunkLists = initChunkLists(maxNProducers);
-    }
-
-    /**
-     * Init thread local for the new producer
-     */
-    void bindProducer(int pId) {
-        if (pContextThreadLocal.get() != null) {
-            throw new UnsupportedOperationException("Trying to bind producer " + pId + " that is already bound");
-        }
-
-        pContextThreadLocal.set(new ProducerContext(pId));
+        this.emptyIndicator = new boolean[nConsumers];
     }
 
     // todo check
     private CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> initChunkLists(int producersCount) {
 
         // one-time used template for chunkLists
-        List<SomeSingleWriterMultiReaderList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
+        final List<SomeSingleWriterMultiReaderList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
 
         for (int i = 0; i < producersCount; i++) {
             chunkListsTemplate.add(new SomeSingleWriterMultiReaderList<>());
@@ -59,10 +52,15 @@ public class SalsaSCPool implements SCPool {
         return new CopyOnWriteArrayList<>(chunkListsTemplate);
     }
 
-    private void checkProducerRegistration(String from) {
-        if (pContextThreadLocal.get() == null) {
-            throw new IllegalStateException("Calling " + from + " method with null pContextThreadLocal.");
+    /**
+     * Init thread local for the new producer
+     */
+    void bindProducer(int pId) {
+        if (pContextThreadLocal.get() != null) {
+            throw new UnsupportedOperationException("Trying to bind producer " + pId + " that is already bound");
         }
+
+        pContextThreadLocal.set(new ProducerContext(pId));
     }
 
     @Override
@@ -77,11 +75,17 @@ public class SalsaSCPool implements SCPool {
         insert(new RunnableWithId(task), true); // producing only as RunnableWithId wrapper
     }
 
+    private void checkProducerRegistration(String from) {
+        if (pContextThreadLocal.get() == null) {
+            throw new IllegalStateException("Calling " + from + " method with null pContextThreadLocal.");
+        }
+    }
+
     private boolean insert(Runnable task, boolean force) {
         ProducerContext producerContext = pContextThreadLocal.get();
 
         if (producerContext.getChunk() == null) {
-            // allocate new chunk
+            // allocate new chunk, put it into producer context
             if (!getChunk(force)) return false;
         }
 
@@ -108,8 +112,8 @@ public class SalsaSCPool implements SCPool {
             newChunk = new Chunk(chunkSize, consumerId);
         }
 
-        Node node = new Node(newChunk);
-        chunkLists.get(producerContext.getProducerId()).add(node);
+        final Node node = new Node(newChunk);
+        chunkLists.get(producerContext.getProducerId()).add(node); // add new node to producer's own chunk list
         producerContext.chunk = newChunk;
         producerContext.prodIdx = 0;
         return true;
@@ -200,7 +204,7 @@ public class SalsaSCPool implements SCPool {
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || chunk.getTasks()[prevIdx + 1] == null) return null;
 
-        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(maxNProducers + 1);
+        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(maxNProducers);
 
         myStealList.add(prevNode); // make it stealable from my list
         if (!chunk.getOwner().compareAndSet(((SalsaSCPool) otherSCPool).consumerId, consumerId)) {
@@ -295,10 +299,11 @@ public class SalsaSCPool implements SCPool {
     public boolean isEmpty() {
         for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
+                if (node.getChunk() == null) continue;
                 int idx = node.getIdx();
                 for (int i = idx + 1; i < chunkSize; i++) {
                     Runnable task = node.getChunk().getTasks()[i];
-                    if (task != TAKEN && task != null) return false;
+                    if (task != null && task != TAKEN) return false;
                 }
             }
         }

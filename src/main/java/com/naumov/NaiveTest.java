@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class Test {
+public class NaiveTest {
 
     public static void main(String[] args) {
         final int NUMBER_OF_PRODUCERS = 2;
