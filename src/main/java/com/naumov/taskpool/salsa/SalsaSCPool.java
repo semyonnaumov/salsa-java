@@ -333,10 +333,11 @@ public class SalsaSCPool implements SCPool {
     public boolean isEmpty() {
         for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
-                if (node.getChunk() == null) continue;
                 int idx = node.getIdx();
+                Chunk chunk = node.getChunk();
+                if (chunk == null) continue;
                 for (int i = idx + 1; i < chunkSize; i++) {
-                    Runnable task = node.getChunk().getTasks()[i];
+                    Runnable task = chunk.getTasks()[i];
                     if (task != null && !TAKEN.equals(task)) return false;
                 }
             }

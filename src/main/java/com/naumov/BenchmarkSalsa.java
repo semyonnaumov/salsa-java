@@ -4,30 +4,19 @@ import org.openjdk.jmh.annotations.*;
 
 import java.util.concurrent.*;
 
-// $ java -jar target/benchmarks.jar BenchmarkSalsa -f 1
+// $ java -jar target/benchmarks.jar BenchmarkSalsa -w 1s -r 1s -f 1 -si true
+// -w = warmup time
+// -r = measurement time
+// -f = JVM forks
+// -t = threads
+// -si = synchronize iterations
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class BenchmarkSalsa {
 
-    /*
-     * Fixtures have different Levels to control when they are about to run.
-     * Level.Invocation is useful sometimes to do some per-invocation work,
-     * which should not count as payload. PLEASE NOTE the timestamping and
-     * synchronization for Level.Invocation helpers might significantly offset
-     * the measurement, use with care. See Level.Invocation javadoc for further
-     * discussion.
-     *
-     * Consider this sample:
-     */
-
-    /*
-     * This state handles the executor.
-     * Note we create and shutdown executor with Level.Trial, so
-     * it is kept around the same across all iterations.
-     */
-
     @State(Scope.Benchmark)
     public static class ExecutorWrapper {
-        @Param({"1", "2"})
+//        @Param({"1", "2", "4", "6", "8", "10", "12", "14", "16"})
+        @Param({"1", "2", "4"})
         public int parallelism;
 
         @Param({"SALSA", "FJP", "TPE"})
@@ -52,19 +41,16 @@ public class BenchmarkSalsa {
         }
     }
 
-    /*
-     * This allows us to formulate the task: measure the task turnaround in
-     * "hot" mode when we are not sleeping between the submits, and "cold" mode,
-     * when we are sleeping.
-     */
 
     @Benchmark
+    @Group("producers")
+    @GroupThreads(1) // 1 producer for start
     @BenchmarkMode(Mode.Throughput)
-    public Object measure(ExecutorWrapper e, final Scratch s) throws InterruptedException {
-        return e.service.submit(new Task(s));
+    public double measure(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
+        return e.service.submit(new Task(s)).get();
     }
 
-    @State(Scope.Thread) // thread-local state
+    @State(Scope.Thread) // other benchamrk threads can't see this object (although consumers threads can)
     public static class Scratch {
         private double p;
 
