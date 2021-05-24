@@ -3,6 +3,7 @@ package com.naumov;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class NaiveTest {
@@ -11,8 +12,9 @@ public class NaiveTest {
         final int NUMBER_OF_PRODUCERS = 2;
         final int NUMBER_OF_CONSUMERS = 2;
 
+//        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
+//        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
         ExecutorService executorService = MyExecutors.newSalsaThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
-        // since here executorService is fully initialized
 
         Runnable standardTask = () -> {
             int a = ThreadLocalRandom.current().nextInt(1000);

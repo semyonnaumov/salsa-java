@@ -19,6 +19,7 @@ public interface TaskPool {
     /**
      * For the system to be linearizable this method must return {@code true} only
      * when there's no tasks in the pool at some point during this method execution.
+     * @return {@code false} result of emptiness check
      */
     boolean isEmpty();
 }

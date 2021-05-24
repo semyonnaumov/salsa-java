@@ -10,7 +10,7 @@ public final class MyExecutors {
     }
 
     public static ExecutorService newSalsaThreadPool(int maxNProducers, int nConsumers) {
-        return new TaskPoolExecutor(new SalsaTaskPool(maxNProducers, nConsumers, 100), nConsumers);
+        return new TaskPoolExecutor(new SalsaTaskPool(maxNProducers, nConsumers, 1000), nConsumers);
     }
 
     // for performance comparison
