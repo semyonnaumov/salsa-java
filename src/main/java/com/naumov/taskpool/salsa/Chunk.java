@@ -38,7 +38,7 @@ public class Chunk implements Cloneable {
     public Chunk clone() throws CloneNotSupportedException {
         // todo implement wisely
         super.clone();
-        return new Chunk(chunkSize, owner.get(), tasks);
+        return new Chunk(chunkSize, owner.get(), Arrays.copyOf(tasks, tasks.length)); // todo correct ? maybe use AtomicReferenceArray since array elements are note volatile?
     }
 
     @Override

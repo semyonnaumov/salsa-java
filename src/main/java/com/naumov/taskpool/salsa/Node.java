@@ -34,7 +34,9 @@ public class Node implements Cloneable {
     public Node clone() throws CloneNotSupportedException {
         // todo implement wisely
         super.clone();
-        return new Node(chunk.clone(), idx);
+        Chunk oldChunk = chunk; // read reference
+        Chunk clonedChunk = oldChunk != null ? oldChunk.clone() : null;
+        return new Node(clonedChunk, idx);
     }
 
     @Override

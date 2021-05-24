@@ -28,6 +28,10 @@ public class RunnableWithId implements Runnable {
 
     @Override
     public void run() {
+        if (this == TAKEN) {
+            throw new IllegalStateException("Thread [" + Thread.currentThread() + "] + is trying to execute TAKEN sentinel");
+        }
+
         if (isCompleted) {
             throw new IllegalStateException("Thread [" + Thread.currentThread() + "] + is trying to execute " + this + ", which has already been executed!");
         }

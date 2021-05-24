@@ -47,6 +47,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
 
     @Override
     public void execute(Runnable task) {
+        if (task == null) throw new NullPointerException();
         taskPool.put(task);
     }
 
