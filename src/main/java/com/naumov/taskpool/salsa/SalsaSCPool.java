@@ -16,7 +16,7 @@ import static com.naumov.taskpool.salsa.VHUtil.RUNNABLE_ARRAY_VH;
 public class SalsaSCPool implements SCPool {
 
     // unshared owner-local state
-    private volatile Node currentNode = null; // node for owner to work with
+    private volatile Node currentNode = null; // node for owner to work with // todo to ThreadLocal currentNodeThreadLocal
 
     // unmodifiable shared state
     private final int consumerId;
@@ -25,9 +25,9 @@ public class SalsaSCPool implements SCPool {
     private final int nConsumers;
 
     // shared state
-    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // todo introduce some sync-free on get() thread-safe structure
-    private final boolean[] emptyIndicator; // shared among all consumers
-    private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks, initially empty
+    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // shared among all actors
+    private final boolean[] emptyIndicator; // shared among all consumers // todo AtomicIntegerArray (volatile semantics)
+    private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks,
                                                                           // shared among owner and producers
 
     // ThreadLocals

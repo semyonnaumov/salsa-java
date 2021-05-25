@@ -6,7 +6,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class Chunk implements Cloneable {
     private final AtomicInteger owner; // atomic to perform CAS
     private final int chunkSize;
-    private final Runnable[] tasks;
+    private final Runnable[] tasks; // todo AtomicReferenceArray<Runnable> (volatile semantics)
 
     public Chunk(int chunkSize, int owner) {
         this.owner = new AtomicInteger(owner);

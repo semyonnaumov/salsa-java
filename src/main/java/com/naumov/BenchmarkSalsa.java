@@ -50,7 +50,7 @@ public class BenchmarkSalsa {
         return e.service.submit(new Task(s)).get();
     }
 
-    @State(Scope.Thread) // other benchamrk threads can't see this object (although consumers threads can)
+    @State(Scope.Thread) // other benchmark threads can't see this object (although consumers threads can)
     public static class Scratch {
         private double p;
 

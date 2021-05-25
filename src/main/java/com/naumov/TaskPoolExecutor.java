@@ -27,7 +27,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
     }
 
     /**
-     * Consumer
+     * Consumer thread
      */
     class Worker extends Thread {
 
