@@ -6,7 +6,7 @@ import java.util.concurrent.*;
 
 // $ java -jar target/benchmarks.jar BenchmarkSalsa -w 1s -r 1s -f 1 -si true
 // -w = warmup time
-// -r = measurement time
+// -r = run (measurement) time
 // -f = JVM forks
 // -t = threads
 // -si = synchronize iterations

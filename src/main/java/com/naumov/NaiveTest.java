@@ -8,9 +8,9 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public class NaiveTest {
 
-    public static void main(String[] args) {
-        final int NUMBER_OF_PRODUCERS = 2;
-        final int NUMBER_OF_CONSUMERS = 2;
+    public static void main(String[] args) throws InterruptedException {
+        final int NUMBER_OF_PRODUCERS = 8;
+        final int NUMBER_OF_CONSUMERS = 8;
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
@@ -38,5 +38,10 @@ public class NaiveTest {
 
         // start producing
         producers.forEach(Thread::start);
+        Thread.sleep(10000L);
+        producers.forEach(Thread::interrupt);
+
+        executorService.shutdownNow();
+        System.out.println("--------------------------------------------------------------------------------");
     }
 }

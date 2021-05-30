@@ -57,12 +57,12 @@ public class SalsaTaskPool implements TaskPool {
 
         // produce to the pool by the order of the access list
         for (SalsaSCPool scPool: pAccessListThreadLocal.get()) {
-            if (scPool.produce(task)) return;
+            if (scPool.produce(new SalsaTask(task))) return;
         }
 
         // if all pools are full, expand the closest pool
         SalsaSCPool firstSCPool = pAccessListThreadLocal.get().get(0);
-        firstSCPool.produceForce(task);
+        firstSCPool.produceForce(new SalsaTask(task));
     }
 
     @Override
@@ -70,7 +70,7 @@ public class SalsaTaskPool implements TaskPool {
         checkThreadRegistered(false);
 
         SalsaSCPool myPool = cSCPoolThreadLocal.get();
-        while (true) {
+        while (!Thread.currentThread().isInterrupted()) { // todo if more than 4 consumers, they can't quit this method!
             // first try to get a task from the local pool
             Runnable task = myPool.consume();
             if (task != null) return task;
@@ -84,6 +84,8 @@ public class SalsaTaskPool implements TaskPool {
             // no tasks found - validate emptiness
             if (isEmpty()) return null;
         }
+
+        return null;
     }
 
     @Override

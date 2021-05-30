@@ -5,6 +5,7 @@ import com.naumov.taskpool.TaskPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.*;
+import java.util.stream.Collectors;
 
 public class TaskPoolExecutor extends AbstractExecutorService {
     private final TaskPool taskPool;
@@ -23,6 +24,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
         }
         this.consumers =  workers;
 
+        ThreadUtil.logAction("starting workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
         consumers.forEach(Thread::start);
     }
 
@@ -39,8 +41,10 @@ public class TaskPoolExecutor extends AbstractExecutorService {
         public void run() {
             while (!this.isInterrupted()) {
                 Runnable task = taskPool.get();
-                ThreadUtil.logAction("extracted task: " + task);
-                if (task != null) task.run(); // todo introduce exponential backoff here? (when pool is empty)
+                if (task != null) {
+                    ThreadUtil.logAction("extracted task: " + task);
+                    task.run(); // todo introduce exponential backoff here? (when pool is empty)
+                }
             }
         }
     }
@@ -53,12 +57,15 @@ public class TaskPoolExecutor extends AbstractExecutorService {
 
     @Override
     public void shutdown() {
-        // TBD
+        // todo implement correctly
+        shutdownNow();
     }
 
     @Override
     public List<Runnable> shutdownNow() {
-        // TBD
+        // todo implement correctly
+        ThreadUtil.logAction("shutting down workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
+        consumers.forEach(Thread::interrupt);
         return null;
     }
 

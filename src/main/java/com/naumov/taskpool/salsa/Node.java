@@ -1,17 +1,24 @@
 package com.naumov.taskpool.salsa;
 
-public class Node implements Cloneable {
-    private volatile Chunk chunk;
+public class Node {
     private volatile int idx = -1;
+    private volatile Chunk chunk;
 
-    public Node(Chunk chunk) {
-        this.chunk = chunk;
+    public Node() {
     }
 
-    // only for cloning
-    private Node(Chunk chunk, int idx) {
-        this.chunk = chunk;
-        this.idx = idx;
+    /**
+     * Copying constructor
+     *
+     * @param other node to copy
+     */
+    public Node(Node other) {
+        if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
+                " copying constructor called with null argument");
+
+        idx = other.idx;
+        Chunk otherChunk = other.chunk;
+        chunk = new Chunk(otherChunk != null ? new Chunk(otherChunk) : null);
     }
 
     public Chunk getChunk() {
@@ -28,15 +35,6 @@ public class Node implements Cloneable {
 
     public void setIdx(int idx) {
         this.idx = idx;
-    }
-
-    @Override
-    public Node clone() throws CloneNotSupportedException {
-        // todo implement wisely
-        super.clone();
-        Chunk oldChunk = chunk; // read reference
-        Chunk clonedChunk = oldChunk != null ? oldChunk.clone() : null;
-        return new Node(clonedChunk, idx);
     }
 
     @Override

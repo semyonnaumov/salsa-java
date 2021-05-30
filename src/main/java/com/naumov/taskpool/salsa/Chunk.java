@@ -1,44 +1,49 @@
 package com.naumov.taskpool.salsa;
 
-import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReferenceArray;
 
-public class Chunk implements Cloneable {
-    private final AtomicInteger owner; // atomic to perform CAS
+public class Chunk {
     private final int chunkSize;
-    private final Runnable[] tasks; // todo AtomicReferenceArray<Runnable> (volatile semantics)
+    private final AtomicInteger owner;
+    private volatile AtomicReferenceArray<Runnable> tasks; // todo change to final and not use clear()?
 
     public Chunk(int chunkSize, int owner) {
-        this.owner = new AtomicInteger(owner);
         this.chunkSize = chunkSize;
-        this.tasks = new Runnable[chunkSize];
+        this.owner = new AtomicInteger(owner);
+        this.tasks = new AtomicReferenceArray<>(chunkSize);
     }
 
-    // only for cloning
-    private Chunk(int chunkSize, int owner, Runnable[] tasks) {
-        this.owner = new AtomicInteger(owner);
-        this.chunkSize = chunkSize;
-        this.tasks = tasks;
+    /**
+     * Copying constructor
+     * @param other chunk to copy
+     */
+    public Chunk(Chunk other) {
+        if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
+                " copying constructor called with null argument");
+
+        chunkSize = other.chunkSize;
+        owner = new AtomicInteger(other.owner.get());
+
+        Runnable[] copy = new Runnable[chunkSize];
+        for (int i = 0; i < copy.length; i++) {
+            copy[i] = other.tasks.get(i);
+        }
+
+        tasks = new AtomicReferenceArray<>(copy);
     }
 
     public AtomicInteger getOwner() {
         return owner;
     }
 
-    public Runnable[] getTasks() {
+    public AtomicReferenceArray<Runnable> getTasks() {
         return tasks;
     }
 
-    // todo needs synchronization?
+    // todo consider deleting this method
     public void clear() {
-        Arrays.fill(tasks, null);
-    }
-
-    @Override
-    public Chunk clone() throws CloneNotSupportedException {
-        // todo implement wisely
-        super.clone();
-        return new Chunk(chunkSize, owner.get(), Arrays.copyOf(tasks, tasks.length)); // todo correct ? maybe use AtomicReferenceArray since array elements are note volatile?
+        this.tasks = new AtomicReferenceArray<>(chunkSize);
     }
 
     @Override
@@ -46,7 +51,7 @@ public class Chunk implements Cloneable {
         return "Chunk{" +
                 "owner=" + owner.get() +
                 ", chunkSize=" + chunkSize +
-                ", tasks=" + Arrays.toString(tasks) +
+                ", tasks=" + tasks +
                 '}';
     }
 }
