@@ -18,7 +18,7 @@ public class Node {
 
         idx = other.idx;
         Chunk otherChunk = other.chunk;
-        chunk = new Chunk(otherChunk != null ? new Chunk(otherChunk) : null);
+        chunk = otherChunk != null ? new Chunk(otherChunk) : null;
     }
 
     public Chunk getChunk() {

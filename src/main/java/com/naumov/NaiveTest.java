@@ -2,27 +2,26 @@ package com.naumov;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ThreadLocalRandom;
+import java.util.concurrent.*;
 
 public class NaiveTest {
 
+    public static class MathLogTask implements Callable<Double> {
+        int a = 2 + ThreadLocalRandom.current().nextInt(1000);
+
+        @Override
+        public Double call() {
+            return Math.log(a);
+        }
+    }
+
     public static void main(String[] args) throws InterruptedException {
-        final int NUMBER_OF_PRODUCERS = 8;
-        final int NUMBER_OF_CONSUMERS = 8;
+        final int NUMBER_OF_PRODUCERS = 1;
+        final int NUMBER_OF_CONSUMERS = 2;
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
         ExecutorService executorService = MyExecutors.newSalsaThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
-
-        Runnable standardTask = () -> {
-            int a = ThreadLocalRandom.current().nextInt(1000);
-            for (int i = 0; i < 1000; i++) {
-                a += i;
-            }
-            ThreadUtil.logAction("exec task, res = " + a);
-        };
 
         // init producers
         List<Thread> producers = new ArrayList<>();
@@ -30,7 +29,13 @@ public class NaiveTest {
             Thread producer = new Thread(() -> {
                 while (!Thread.currentThread().isInterrupted()) {
                     ThreadUtil.logAction("submit task");
-                    executorService.submit(standardTask);
+                    try {
+                        MathLogTask task = new MathLogTask();
+                        Double aDouble = executorService.submit(new MathLogTask()).get();
+                        System.out.println("a = " + task.a + ", res = " + aDouble);
+                    } catch (InterruptedException | ExecutionException e) {
+                        e.printStackTrace();
+                    }
                 }
             }, "Producer-" + i);
             producers.add(producer);
