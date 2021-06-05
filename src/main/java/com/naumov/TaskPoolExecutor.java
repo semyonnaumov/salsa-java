@@ -24,7 +24,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
         }
         this.consumers =  workers;
 
-        ThreadUtil.logAction("starting workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
+        ThreadUtil.logMajorAction("starting workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
         consumers.forEach(Thread::start);
     }
 
@@ -64,7 +64,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
     @Override
     public List<Runnable> shutdownNow() {
         // todo implement correctly
-        ThreadUtil.logAction("shutting down workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
+        ThreadUtil.logMajorAction("shutting down workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
         consumers.forEach(Thread::interrupt);
         return null;
     }

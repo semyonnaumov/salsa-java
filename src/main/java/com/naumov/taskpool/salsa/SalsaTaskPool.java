@@ -118,17 +118,18 @@ public class SalsaTaskPool implements TaskPool {
                 int id = tryInitId(pCount, maxNProducers, true);
                 pIdThreadLocal.set(id);
 
-                // init access list and bind
+                // init access list and bind producer
                 pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
-                pAccessListThreadLocal.get().forEach(scPool -> scPool.bindProducer(id));
+                pAccessListThreadLocal.get().forEach(scPool -> scPool.registerProducer(id));
             } else {
                 // register as consumer
                 int id = tryInitId(cCount, maxNConsumers, false);
                 cIdThreadLocal.set(id);
 
-                // init access list and bind
+                // init access list and bind owner
                 cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools));
                 SalsaSCPool myPool = cAccessListThreadLocal.get().remove(id);
+                myPool.registerOwner();
                 cSCPoolThreadLocal.set(myPool);
             }
         } else if (pIdThreadLocal.get() != null && !fromProducerContext) {

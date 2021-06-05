@@ -15,9 +15,6 @@ import static com.naumov.taskpool.salsa.SalsaTask.TAKEN;
 
 public class SalsaSCPool implements SCPool {
 
-    // unshared owner-local state
-    private volatile Node currentNode = null; // node for owner to work with // todo to ThreadLocal currentNodeThreadLocal
-
     // unmodifiable shared state
     private final int consumerId;
     private final int chunkSize;
@@ -32,6 +29,7 @@ public class SalsaSCPool implements SCPool {
 
     // ThreadLocals
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
+    private final ThreadLocal<OwnerContext> ownerContextThreadLocal = ThreadLocal.withInitial(() -> null);
 
     public SalsaSCPool(int consumerId, int chunkSize, int maxNProducers, int nConsumers) {
         this.consumerId = consumerId;
@@ -61,37 +59,55 @@ public class SalsaSCPool implements SCPool {
     /**
      * Init ThreadLocal for the new producer.
      */
-    @PermitProducers
-    void bindProducer(int pId) {
+    @PermitAll
+    void registerProducer(int pId) {
         if (pContextThreadLocal.get() != null) {
-            throw new UnsupportedOperationException("Trying to bind producer " + pId + " that is already bound");
+            throw new UnsupportedOperationException("Trying to register producer " + pId +
+                    " that is already registered in this " + SalsaSCPool.class.getSimpleName());
         }
 
         pContextThreadLocal.set(new ProducerContext(pId));
     }
 
+    /**
+     * Init ThreadLocal for the owner consumer.
+     */
+    @PermitAll
+    void registerOwner() {
+        if (ownerContextThreadLocal.get() != null) {
+            throw new UnsupportedOperationException("Trying to register owner for already owned " +
+                    SalsaSCPool.class.getSimpleName());
+        }
+
+        ownerContextThreadLocal.set(new OwnerContext());
+    }
+
     @Override
     @PermitProducers
     public boolean produce(Runnable task) {
-        checkProducerRegistration("produce");
+        checkProducerRegistration();
         return insert(task, false);
     }
 
     @Override
     @PermitProducers
     public void produceForce(Runnable task) {
-        checkProducerRegistration("produceForce");
+        checkProducerRegistration();
         insert(task, true);
     }
 
-    @PermitProducers
-    private void checkProducerRegistration(String from) {
+    private void checkProducerRegistration() {
         if (pContextThreadLocal.get() == null) {
-            throw new IllegalStateException("Calling " + from + " method with null pContextThreadLocal.");
+            throw new IllegalStateException("Calling thread wasn't registered as producer.");
         }
     }
 
-    @PermitProducers
+    private void checkOwnerRegistration() {
+        if (ownerContextThreadLocal.get() == null) {
+            throw new IllegalStateException("Calling thread wasn't registered as owner consumer.");
+        }
+    }
+
     private boolean insert(Runnable task, boolean force) {
         ProducerContext producerContext = pContextThreadLocal.get();
 
@@ -111,7 +127,6 @@ public class SalsaSCPool implements SCPool {
         return true;
     }
 
-    @PermitProducers
     private boolean getChunk(boolean force) {
         ProducerContext producerContext = pContextThreadLocal.get();
 
@@ -135,8 +150,11 @@ public class SalsaSCPool implements SCPool {
     @Override
     @PermitOwner
     public Runnable consume() {
-        if (currentNode != null) { // common case
-            Runnable task = takeTask(currentNode);
+        checkOwnerRegistration();
+        OwnerContext ownerContext = ownerContextThreadLocal.get();
+
+        if (ownerContext.getCurrentNode() != null) { // common case
+            Runnable task = takeTask(ownerContext.getCurrentNode());
             if (task != null) return task;
         }
 
@@ -146,14 +164,14 @@ public class SalsaSCPool implements SCPool {
                 if (node.getChunk() != null && node.getChunk().getOwner().get() == consumerId) {
                     Runnable task = takeTask(node);
                     if (task != null) {
-                        currentNode = node;
+                        ownerContext.setCurrentNode(node);
                         return task;
                     }
                 }
             }
         }
 
-        currentNode = null;
+        ownerContext.setCurrentNode(null);
         return null;
     }
 
@@ -162,7 +180,6 @@ public class SalsaSCPool implements SCPool {
      * @param node some node to retrieve a task from
      * @return retrieved task or {@code null}
      */
-    @PermitOwner
     private Runnable takeTask(Node node) {
         Chunk chunk = node.getChunk();
         if (chunk == null) return null; // chunk has been stolen from this node
@@ -189,7 +206,7 @@ public class SalsaSCPool implements SCPool {
         boolean success = !TAKEN.equals(task) && chunk.getTasks().compareAndSet(idx, task, TAKEN);
 
         if (success) checkLast(node, next);
-        currentNode = null;
+        ownerContextThreadLocal.get().setCurrentNode(null);
         return success ? task : null;
     }
 
@@ -200,7 +217,6 @@ public class SalsaSCPool implements SCPool {
      * @param node node to check for being completely used up
      * @param task task to check
      */
-    @PermitOwner
     private void checkLast(Node node, Runnable task) {
         if (node.getIdx() + 1 == chunkSize) { // finished the chunk
             Chunk usedChunk = node.getChunk();
@@ -210,7 +226,7 @@ public class SalsaSCPool implements SCPool {
             usedChunk.clear(); // todo maybe just create a new chunk? how much pressure on GC?
             chunkPool.add(usedChunk);
 
-            currentNode = null;
+            ownerContextThreadLocal.get().setCurrentNode(null);
             clearIndicators();
         }
 
@@ -226,6 +242,7 @@ public class SalsaSCPool implements SCPool {
     @Override
     @PermitOwner
     public Runnable steal(SCPool otherSCPool) {
+        checkOwnerRegistration();
 
         Node prevNode = getNode((SalsaSCPool) otherSCPool);
         if (prevNode == null) return null; // no chunks found
@@ -276,7 +293,7 @@ public class SalsaSCPool implements SCPool {
 
         checkLast(newNode, next);
 
-        if (chunk.getOwner().get() == consumerId) currentNode = newNode;
+        if (chunk.getOwner().get() == consumerId) ownerContextThreadLocal.get().setCurrentNode(newNode);
         return task;
     }
 
@@ -287,11 +304,11 @@ public class SalsaSCPool implements SCPool {
      * @param otherSCPool other consumer's {@link SalsaSCPool}
      * @return found node
      */
-    @PermitOwner
     private Node getNode(SalsaSCPool otherSCPool) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
         int startId = random.nextInt(maxNProducers + 1);
 
+        // my feature
         // traverse all entries from a random start circularly to find not empty node
         for (int i = startId; i <= maxNProducers; i++) {
             Node res = scanChunkListAtIndex(otherSCPool, i);
@@ -306,6 +323,7 @@ public class SalsaSCPool implements SCPool {
         return null;
     }
 
+    // именно тут владелец текущего пула лезет в чужой пул
     /**
      * Used to search for a node with possibly not empty {@link Chunk}.
      * For using only in {@link SalsaSCPool#getNode(SalsaSCPool)}.
@@ -313,7 +331,6 @@ public class SalsaSCPool implements SCPool {
      * @param otherSCPool other consumer's {@link SalsaSCPool}
      * @param i chunk list index to look for a chunk
      */
-    @PermitProducers
     private Node scanChunkListAtIndex(SalsaSCPool otherSCPool, int i) {
         SomeSingleWriterMultiReaderList<Node> nodes = otherSCPool.chunkLists.get(i);
         if (!nodes.isEmpty()) { // todo consider performance issues
@@ -346,18 +363,17 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
-    @PermitAll
+    @PermitConsumers
     public void setIndicator(int consumerId) {
         emptyIndicators.set(consumerId, 1);
     }
 
     @Override
-    @PermitAll
+    @PermitConsumers
     public boolean checkIndicator(int consumerId) {
         return emptyIndicators.get(consumerId) == 1;
     }
 
-    @PermitOwner
     private void clearIndicators() {
         for (int i = 0; i < nConsumers; i++) {
             emptyIndicators.set(i, 0);
@@ -393,6 +409,18 @@ public class SalsaSCPool implements SCPool {
 
         public void setProdIdx(int prodIdx) {
             this.prodIdx = prodIdx;
+        }
+    }
+
+    private static class OwnerContext {
+        private Node currentNode = null; // todo need volatile???
+
+        public Node getCurrentNode() {
+            return currentNode;
+        }
+
+        public void setCurrentNode(Node currentNode) {
+            this.currentNode = currentNode;
         }
     }
 }
