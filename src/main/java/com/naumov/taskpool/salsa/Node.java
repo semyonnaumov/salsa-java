@@ -1,5 +1,7 @@
 package com.naumov.taskpool.salsa;
 
+import java.util.Objects;
+
 public class Node {
     private volatile int idx = -1;
     private volatile Chunk chunk;
@@ -35,6 +37,25 @@ public class Node {
 
     public void setIdx(int idx) {
         this.idx = idx;
+    }
+
+    // not thread-safe for sequential tests
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) return true;
+
+        if (obj instanceof Node) {
+            Node other = (Node) obj;
+            return other.idx == this.idx && Objects.equals(other.chunk, this.chunk);
+        }
+
+        return false;
+    }
+
+    // not thread-safe for sequential tests
+    @Override
+    public int hashCode() {
+        return Integer.hashCode(idx) + Objects.hashCode(chunk);
     }
 
     @Override

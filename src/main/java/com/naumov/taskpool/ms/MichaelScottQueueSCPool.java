@@ -4,7 +4,7 @@ import com.naumov.taskpool.SCPool;
 
 import java.util.concurrent.ConcurrentLinkedQueue;
 
-// todo
+// TBD
 public class MichaelScottQueueSCPool implements SCPool {
     private final ConcurrentLinkedQueue<Object> container = new ConcurrentLinkedQueue<>();
 

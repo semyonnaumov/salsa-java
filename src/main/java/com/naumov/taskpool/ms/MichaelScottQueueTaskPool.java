@@ -5,7 +5,7 @@ import com.naumov.taskpool.TaskPool;
 import java.util.concurrent.ConcurrentLinkedQueue;
 
 public class MichaelScottQueueTaskPool implements TaskPool {
-    // todo add cons threads init
+    // TBD
     private final int maxNProducers; // for compatibility with SALSA
     private final int nConsumers; // for compatibility with SALSA
     private final ConcurrentLinkedQueue<Runnable> queue;
@@ -18,13 +18,13 @@ public class MichaelScottQueueTaskPool implements TaskPool {
 
     @Override
     public void put(Runnable task) {
-        // todo add checking
+        // TBD
         queue.add(task);
     }
 
     @Override
     public Runnable get() {
-        // todo check called internally
+        // TBD
         return queue.poll();
     }
 

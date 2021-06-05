@@ -14,7 +14,7 @@ public class SalsaTaskPool implements TaskPool {
 
     // unmodifiable shared pool state
     private final int maxNProducers;
-    private final int nConsumers;
+    private final int maxNConsumers;
     private final CopyOnWriteArrayList<SalsaSCPool> allSCPools;
 
     // shared pool state
@@ -28,23 +28,23 @@ public class SalsaTaskPool implements TaskPool {
     private final ThreadLocal<List<SalsaSCPool>> cAccessListThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's access list
     private final ThreadLocal<SalsaSCPool> cSCPoolThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's SCPool
 
-    public SalsaTaskPool(int maxNProducers, int nConsumers, int chunkSize) {
+    public SalsaTaskPool(int maxNProducers, int maxNConsumers, int chunkSize) {
         if (maxNProducers < 1 || maxNProducers > MAX_PRODUCERS) {
             throw new IllegalArgumentException("maxNProducers cannot be less than 1 and greater than " + MAX_PRODUCERS
                     + ", got " + maxNProducers);
         }
 
-        if (nConsumers < 1 || nConsumers > MAX_CONSUMERS) {
+        if (maxNConsumers < 1 || maxNConsumers > MAX_CONSUMERS) {
             throw new IllegalArgumentException("nConsumers cannot be less than 1 and greater than " + MAX_CONSUMERS
-                    + ", got " + nConsumers);
+                    + ", got " + maxNConsumers);
         }
 
         this.maxNProducers = maxNProducers;
-        this.nConsumers = nConsumers;
+        this.maxNConsumers = maxNConsumers;
 
         final List<SalsaSCPool> allSCPools = new ArrayList<>();
-        for (int cId = 0; cId < nConsumers; cId++) {
-            final SalsaSCPool scPool = new SalsaSCPool(cId, chunkSize, maxNProducers, nConsumers);
+        for (int cId = 0; cId < maxNConsumers; cId++) {
+            final SalsaSCPool scPool = new SalsaSCPool(cId, chunkSize, maxNProducers, maxNConsumers);
             allSCPools.add(scPool); // create sc pools, but not bind to consumers yet
         }
 
@@ -94,7 +94,7 @@ public class SalsaTaskPool implements TaskPool {
         // todo currently cannot be called by a producer - fix
         checkThreadRegistered(false);
 
-        for (int i = 0; i < nConsumers; i++) {
+        for (int i = 0; i < maxNConsumers; i++) {
             for (SalsaSCPool scPool : allSCPools) {
                 if (i == 0) scPool.setIndicator(cIdThreadLocal.get());
                 if (!scPool.isEmpty()) return false;
@@ -123,7 +123,7 @@ public class SalsaTaskPool implements TaskPool {
                 pAccessListThreadLocal.get().forEach(scPool -> scPool.bindProducer(id));
             } else {
                 // register as consumer
-                int id = tryInitId(cCount, nConsumers, false);
+                int id = tryInitId(cCount, maxNConsumers, false);
                 cIdThreadLocal.set(id);
 
                 // init access list and bind
