@@ -15,7 +15,7 @@ public class NodeTest {
         Node other = new Node(node);
 
         assertEquals(node.getIdx(), other.getIdx());
-        assertNotSame(node.getChunk(), other.getChunk());
+        assertSame(node.getChunk(), other.getChunk()); // copying is shallow by design!
     }
 
     @Test

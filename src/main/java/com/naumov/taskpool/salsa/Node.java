@@ -21,11 +21,8 @@ public class Node {
         if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
                 " copying constructor called with null argument");
 
-        idx = other.idx;
-        Chunk otherChunk = other.chunk;
-
-        // todo скорее всего сам блок не надо копировать, просто присваиваем его в новый узел! (см. Notion)
-        chunk = otherChunk != null ? new Chunk(otherChunk) : null;
+        this.idx = other.idx;
+        this.chunk = other.chunk;
     }
 
     public Chunk getChunk() {

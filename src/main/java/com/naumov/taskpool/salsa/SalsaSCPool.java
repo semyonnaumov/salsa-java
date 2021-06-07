@@ -163,7 +163,8 @@ public class SalsaSCPool implements SCPool {
         // traverse chunkLists
         for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
-                if (node.getChunk() != null && node.getChunk().getOwner().get() == consumerId) {
+                Chunk chunk = node.getChunk();
+                if (chunk != null && chunk.getOwner().get() == consumerId) {
                     Runnable task = takeTask(node);
                     if (task != null) {
                         ownerContext.setCurrentNode(node);
@@ -221,12 +222,12 @@ public class SalsaSCPool implements SCPool {
      */
     private void checkLast(Node node, Runnable task) {
         if (node.getIdx() + 1 == chunkSize) { // finished the chunk
-            Chunk usedChunk = node.getChunk();
+            //  Chunk usedChunk = node.getChunk();
             node.setChunk(null);
 
             // recycle used chunk and return to the chunk pool
-            usedChunk.clear(); // todo maybe just create a new chunk? how much pressure on GC?
-            chunkPool.add(usedChunk);
+            //  usedChunk.clear(); // todo maybe just create a new chunk? how much pressure on GC?
+            chunkPool.add(new Chunk(chunkSize, consumerId));
 
             ownerContextThreadLocal.get().setCurrentNode(null);
             clearIndicators();

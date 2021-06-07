@@ -39,6 +39,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
 
         @Override
         public void run() {
+            ThreadUtil.logMajorAction("started");
             while (!this.isInterrupted()) {
                 Runnable task = taskPool.get();
                 if (task != null) {
@@ -46,6 +47,8 @@ public class TaskPoolExecutor extends AbstractExecutorService {
                     task.run(); // todo introduce exponential backoff here? (when pool is empty)
                 }
             }
+
+            ThreadUtil.logMajorAction("interrupted");
         }
     }
 

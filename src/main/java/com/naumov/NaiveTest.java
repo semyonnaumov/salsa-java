@@ -17,7 +17,8 @@ public class NaiveTest {
 
     public static void main(String[] args) throws InterruptedException {
         final int NUMBER_OF_PRODUCERS = 1;
-        final int NUMBER_OF_CONSUMERS = 1;
+        final int NUMBER_OF_CONSUMERS = 2;
+        final long RUNTIME_MS = 10000L;
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
@@ -33,7 +34,7 @@ public class NaiveTest {
                     try {
                         MathLogTask task = new MathLogTask();
                         Double aDouble = executorService.submit(new MathLogTask()).get();
-//                        System.out.println("a = " + task.a + ", res = " + aDouble);
+                        System.out.println("a = " + task.a + ", res = " + aDouble); // todo adds additional sync - delete
                     } catch (InterruptedException | ExecutionException e) {
                         ThreadUtil.logMajorAction("interrupted");
                         return;
@@ -46,7 +47,7 @@ public class NaiveTest {
 
         // start producing
         producers.forEach(Thread::start);
-        Thread.sleep(10000L);
+        Thread.sleep(RUNTIME_MS);
         producers.forEach(Thread::interrupt);
 
         executorService.shutdownNow();
