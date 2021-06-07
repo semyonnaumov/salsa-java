@@ -11,14 +11,12 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import java.util.concurrent.atomic.AtomicIntegerArray;
 
-import static com.naumov.taskpool.salsa.SalsaTask.TAKEN;
-
 public class SalsaSCPool implements SCPool {
 
     // unmodifiable shared state
     private final int consumerId;
     private final int chunkSize;
-    private final int maxNProducers;
+    private final int nProducers;
     private final int nConsumers;
 
     // shared state
@@ -31,12 +29,12 @@ public class SalsaSCPool implements SCPool {
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
     private final ThreadLocal<OwnerContext> ownerContextThreadLocal = ThreadLocal.withInitial(() -> null);
 
-    public SalsaSCPool(int consumerId, int chunkSize, int maxNProducers, int nConsumers) {
+    public SalsaSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers) {
         this.consumerId = consumerId;
         this.chunkSize = chunkSize;
-        this.maxNProducers = maxNProducers;
+        this.nProducers = nProducers;
         this.nConsumers = nConsumers;
-        this.chunkLists = initChunkLists(maxNProducers);
+        this.chunkLists = initChunkLists(nProducers);
         this.emptyIndicators = new AtomicIntegerArray(nConsumers);
     }
 
@@ -86,6 +84,7 @@ public class SalsaSCPool implements SCPool {
     @PermitProducers
     public boolean produce(Runnable task) {
         checkProducerRegistration();
+
         return insert(task, false);
     }
 
@@ -93,6 +92,7 @@ public class SalsaSCPool implements SCPool {
     @PermitProducers
     public void produceForce(Runnable task) {
         checkProducerRegistration();
+
         insert(task, true);
     }
 
@@ -109,6 +109,8 @@ public class SalsaSCPool implements SCPool {
     }
 
     private boolean insert(Runnable task, boolean force) {
+        task = new SalsaTask(task); // wrap original task to introduce uniqueness at every insertion
+
         ProducerContext producerContext = pContextThreadLocal.get();
 
         if (producerContext.getChunk() == null) {
@@ -155,7 +157,7 @@ public class SalsaSCPool implements SCPool {
 
         if (ownerContext.getCurrentNode() != null) { // common case
             Runnable task = takeTask(ownerContext.getCurrentNode());
-            if (task != null) return task;
+            if (task != null) return ((SalsaTask) task).getTask();
         }
 
         // traverse chunkLists
@@ -165,7 +167,7 @@ public class SalsaSCPool implements SCPool {
                     Runnable task = takeTask(node);
                     if (task != null) {
                         ownerContext.setCurrentNode(node);
-                        return task;
+                        return ((SalsaTask) task).getTask();
                     }
                 }
             }
@@ -195,7 +197,7 @@ public class SalsaSCPool implements SCPool {
         if (chunk.getOwner().get() == consumerId) { // common case
             int idx = node.getIdx();
             Runnable next = idx + 1 < chunkSize ? chunk.getTasks().get(idx + 1) : null; // get next task for isEmpty()
-            chunk.getTasks().set(idx, TAKEN);
+            chunk.getTasks().set(idx, SalsaTask.TAKEN);
             checkLast(node, next);
             return task;
         }
@@ -203,7 +205,7 @@ public class SalsaSCPool implements SCPool {
         // the chunk has been stolen, CAS the last task and go away
         int idx = node.getIdx();
         Runnable next = idx + 1 < chunkSize ? chunk.getTasks().get(idx + 1) : null; // get next task for isEmpty()
-        boolean success = !TAKEN.equals(task) && chunk.getTasks().compareAndSet(idx, task, TAKEN);
+        boolean success = !SalsaTask.TAKEN.equals(task) && chunk.getTasks().compareAndSet(idx, task, SalsaTask.TAKEN);
 
         if (success) checkLast(node, next);
         ownerContextThreadLocal.get().setCurrentNode(null);
@@ -243,6 +245,7 @@ public class SalsaSCPool implements SCPool {
     @PermitOwner
     public Runnable steal(SCPool otherSCPool) {
         checkOwnerRegistration();
+        if (otherSCPool == this) throw new IllegalArgumentException("Stealing from yourself is not supported");
 
         Node prevNode = getNode((SalsaSCPool) otherSCPool);
         if (prevNode == null) return null; // no chunks found
@@ -253,7 +256,7 @@ public class SalsaSCPool implements SCPool {
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || chunk.getTasks().get(prevIdx + 1) == null) return null;
 
-        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(maxNProducers);
+        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(nProducers);
 
         myStealList.add(prevNode); // make it stealable from my list
         if (!chunk.getOwner().compareAndSet(((SalsaSCPool) otherSCPool).consumerId, consumerId)) {
@@ -281,7 +284,10 @@ public class SalsaSCPool implements SCPool {
         Node newNode = new Node(prevNode); // make snapshot copy
         newNode.setIdx(idx);
 
-        myStealList.remove(prevNode);
+        // todo delete this debugging check
+        if (!myStealList.remove(prevNode)) {
+            throw new IllegalStateException("couldn't delete added Node form steal list");
+        };
         myStealList.add(newNode);
 
         prevNode.setChunk(null); // remove chunk from consumer's list
@@ -289,12 +295,12 @@ public class SalsaSCPool implements SCPool {
         // done stealing chunk, take one task from it
         if (task == null) return null; // still no task at idx
         Runnable next = idx + 1 < chunkSize ? chunk.getTasks().get(idx + 1) : null; // for isEmpty()
-        if (TAKEN.equals(task) || !chunk.getTasks().compareAndSet(idx, task, TAKEN)) task = null;
+        if (SalsaTask.TAKEN.equals(task) || !chunk.getTasks().compareAndSet(idx, task, SalsaTask.TAKEN)) task = null;
 
         checkLast(newNode, next);
 
         if (chunk.getOwner().get() == consumerId) ownerContextThreadLocal.get().setCurrentNode(newNode);
-        return task;
+        return task != null ? ((SalsaTask) task).getTask() : null;
     }
 
     /**
@@ -306,11 +312,11 @@ public class SalsaSCPool implements SCPool {
      */
     private Node getNode(SalsaSCPool otherSCPool) {
         ThreadLocalRandom random = ThreadLocalRandom.current();
-        int startId = random.nextInt(maxNProducers + 1);
+        int startId = random.nextInt(nProducers + 1);
 
         // my feature
         // traverse all entries from a random start circularly to find not empty node
-        for (int i = startId; i <= maxNProducers; i++) {
+        for (int i = startId; i <= nProducers; i++) {
             Node res = scanChunkListAtIndex(otherSCPool, i);
             if (res != null) return res;
         }
@@ -355,7 +361,7 @@ public class SalsaSCPool implements SCPool {
                 if (chunk == null) continue;
                 for (int i = idx + 1; i < chunkSize; i++) {
                     Runnable task = chunk.getTasks().get(i);
-                    if (task != null && !TAKEN.equals(task)) return false;
+                    if (task != null && !SalsaTask.TAKEN.equals(task)) return false;
                 }
             }
         }
@@ -421,6 +427,45 @@ public class SalsaSCPool implements SCPool {
 
         public void setCurrentNode(Node currentNode) {
             this.currentNode = currentNode;
+        }
+    }
+
+    /**
+     * A {@link Runnable} wrapper, needed to make sure all {@code Runnable}s, inserted to the {@code SalsaSCPool}s are unique.
+     * Uniqueness is provided by creation of a new object each time a producer calls {@link SalsaSCPool#insert(Runnable, boolean)}.
+     * For this reason, there's no need to override {@link Object#equals(Object)} and {@link Object#hashCode()} methods.
+     */
+    private static class SalsaTask implements Runnable {
+        public static final SalsaTask TAKEN = new SalsaTask(); // taken sentinel
+        private final Runnable task;
+
+        // for the TAKEN only
+        private SalsaTask() {
+            this.task = null;
+        }
+
+        public SalsaTask(Runnable task) {
+            if (task == null) throw new IllegalArgumentException("Creating " + SalsaTask.class.getSimpleName() +
+                    " with null runnable");
+            this.task = task;
+        }
+
+        public Runnable getTask() {
+            return this.task;
+        }
+
+        @Override
+        public void run() {
+            this.task.run();
+        }
+
+        @Override
+        public String toString() {
+            return this == TAKEN
+                    ? "SalsaTask.TAKEN"
+                    : "SalsaTask{" +
+                    "task=" + task +
+                    '}';
         }
     }
 }

@@ -6,7 +6,7 @@ package com.naumov.taskpool;
 public interface SCPool {
     /**
      * Lets a producer thread try to insert a task to the pool: returns {@code false} if no space is available.
-     * When it is called by a consumer, some kind of a {@link UnsupportedOperationException} is thrown
+     * When it is called by a consumer, some kind of {@link UnsupportedOperationException} is thrown
      * (depends on the implementation).
      *
      * @param task task to be inserted
@@ -16,7 +16,7 @@ public interface SCPool {
 
     /**
      * Lets a producer thread insert a task to the pool, expanding it when necessary. When it is called by a consumer,
-     * some kind of a {@link UnsupportedOperationException} is thrown (depends on the implementation).
+     * some kind of {@link UnsupportedOperationException} is thrown (depends on the implementation).
      *
      * @param task task to be inserted
      */
@@ -24,7 +24,7 @@ public interface SCPool {
 
     /**
      * Lets the consumer thread, that owns the pool, retrieve a task from it. When it is called by another consumer
-     * or a producer some kind of a {@link UnsupportedOperationException} is thrown (depends on the implementation).
+     * or a producer some kind of {@link UnsupportedOperationException} is thrown (depends on the implementation).
      *
      * @return a task or {@code null} when no tasks are detected
      */
@@ -33,7 +33,7 @@ public interface SCPool {
     /**
      * Lets a consumer thread, that owns the pool, try to steal a number of tasks form the given pool
      * moving them move them to the current pool. When it is called by another consumer or a producer
-     * some kind of a {@link UnsupportedOperationException} is thrown (depends on the implementation).
+     * some kind of {@link UnsupportedOperationException} is thrown (depends on the implementation).
      *
      * @param from the pool to steal from
      * @return one of stolen tasks, {@code null} if stealing was unsuccessful

@@ -1,7 +1,10 @@
 package com.naumov.taskpool.salsa;
 
-import java.util.Objects;
-
+/**
+ * Represents a {@link Chunk} wrapper with field {@code idx}, which points to the last taken (or about to be taken)
+ * {@link Runnable} task in a {@code chunk}. Must not override {@link Object#equals(Object)} and {@link Object#hashCode()}
+ * methods since reference comparison is used for deletion from it's containers.
+ */
 public class Node {
     private volatile int idx = -1;
     private volatile Chunk chunk;
@@ -20,6 +23,8 @@ public class Node {
 
         idx = other.idx;
         Chunk otherChunk = other.chunk;
+
+        // todo скорее всего сам блок не надо копировать, просто присваиваем его в новый узел! (см. Notion)
         chunk = otherChunk != null ? new Chunk(otherChunk) : null;
     }
 
@@ -37,25 +42,6 @@ public class Node {
 
     public void setIdx(int idx) {
         this.idx = idx;
-    }
-
-    // not thread-safe for sequential tests
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-
-        if (obj instanceof Node) {
-            Node other = (Node) obj;
-            return other.idx == this.idx && Objects.equals(other.chunk, this.chunk);
-        }
-
-        return false;
-    }
-
-    // not thread-safe for sequential tests
-    @Override
-    public int hashCode() {
-        return Integer.hashCode(idx) + Objects.hashCode(chunk);
     }
 
     @Override
