@@ -143,6 +143,7 @@ public class SalsaSCPool implements SCPool {
 
         final Node node = new Node();
         node.setChunk(newChunk);
+        // todo iterate through all list to delete used nodes
         chunkLists.get(producerContext.getProducerId()).add(node); // add new node to producer's own chunk list
         producerContext.chunk = newChunk;
         producerContext.prodIdx = 0;
