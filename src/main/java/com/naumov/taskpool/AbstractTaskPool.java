@@ -69,12 +69,12 @@ public abstract class AbstractTaskPool implements TaskPool {
         checkThreadRegistered(false);
 
         SCPool myPool = cSCPoolThreadLocal.get();
-        while (!Thread.currentThread().isInterrupted()) { // todo if more than 4 consumers, they can't quit this method!
+        while (!Thread.currentThread().isInterrupted()) {
             // first try to get a task from the local pool
             Runnable task = myPool.consume();
             if (task != null) return task;
 
-            // failed to get an task from a local pool - steal
+            // failed to get a task from the local pool - steal
             for (SCPool otherSCPool : cAccessListThreadLocal.get()) {
                 task = myPool.steal(otherSCPool);
                 if (task != null) return task;
@@ -89,7 +89,6 @@ public abstract class AbstractTaskPool implements TaskPool {
 
     @Override
     public boolean isEmpty() {
-        // todo currently cannot be called by a producer - fix
         checkThreadRegistered(false);
 
         for (int i = 0; i < nConsumers; i++) {
@@ -107,7 +106,7 @@ public abstract class AbstractTaskPool implements TaskPool {
 
     /**
      * Checks whether a calling thread (producer/consumer) is registered in the task pool and register it if necessary.
-     * @throws UnsupportedOperationException when called by a registered producer with {@code fromProducerContext == false}
+     * @throws IllegalCallerException when called by a registered producer with {@code fromProducerContext == false}
      * or vice versa
      * @param fromProducerContext flag to check for specific context
      */
@@ -116,39 +115,47 @@ public abstract class AbstractTaskPool implements TaskPool {
             // new thread, need to register
             if (fromProducerContext) {
                 // register as producer
-                int id = tryInitId(pCount, nProducers, true);
+                int id = tryInitId(true);
                 pIdThreadLocal.set(id);
 
                 // init access list and bind producer
                 pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
-                pAccessListThreadLocal.get().forEach(scPool -> registerProducerOnSCPool(scPool,id));
+                pAccessListThreadLocal.get().forEach(scPool -> registerProducerOnSCPool(scPool, id));
             } else {
                 // register as consumer
-                int id = tryInitId(cCount, nConsumers, false);
+                int id = tryInitId(false);
                 cIdThreadLocal.set(id);
 
                 // init access list and bind owner
-                cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools));
+                cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
                 SCPool myPool = cAccessListThreadLocal.get().remove(id);
                 registerOwnerOnSCPool(myPool, id);
                 cSCPoolThreadLocal.set(myPool);
             }
         } else if (pIdThreadLocal.get() != null && !fromProducerContext) {
             // asked to register already registered producer as consumer
-            throw new UnsupportedOperationException("Already registered producer called from consumer context");
+            throw new IllegalCallerException("Already registered producer called from consumer context");
         } else if (cIdThreadLocal.get() != null && fromProducerContext) {
             // asked to register already registered consumer as producer
-            throw new UnsupportedOperationException("Already registered consumer called from producer context");
+            throw new IllegalCallerException("Already registered consumer called from producer context");
         }
+        // everything alright, actor is registered
     }
 
-    private int tryInitId(AtomicInteger count, int max, boolean isProducer) {
-        // trying to increment a counter for itself
+    /**
+     * Inits a unique id for the current thread.
+     * @param isProducer producer/consumer flag
+     * @return unique id for producer/consumer
+     */
+    private int tryInitId(boolean isProducer) {
+        AtomicInteger count = isProducer ? pCount : cCount;
+        int max = isProducer ? nProducers : nConsumers;
+
         int currentCount;
         do {
             currentCount = count.get();
-            if (currentCount >= max) { // too many producers
-                throw new UnsupportedOperationException("Too many " + (isProducer ? "producers" : "consumers"));
+            if (currentCount >= max) {
+                throw new IllegalStateException("Too many " + (isProducer ? "producers" : "consumers"));
             }
         } while (!count.compareAndSet(currentCount, currentCount + 1) && !Thread.currentThread().isInterrupted());
 
