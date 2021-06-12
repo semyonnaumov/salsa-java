@@ -18,7 +18,7 @@ public class BenchmarkSalsa {
         @Param({"1", "2", "4", "6", "8"})
         public int parallelism;
 
-        @Param({"SALSA", "FJP", "TPE"})
+        @Param({"MSQ", "SALSA", "FJP"})
         public String type;
 
         ExecutorService service;
@@ -27,10 +27,10 @@ public class BenchmarkSalsa {
         public void up() {
             if ("SALSA".equals(type)) {
                 service = MyExecutors.newSalsaThreadPool(10, parallelism);
-            } else if ("FJP".equals(type)) {
-                service = Executors.newWorkStealingPool(parallelism);
+            } else if ("MSQ".equals(type)) {
+                service = MyExecutors.newMichealScottThreadPool(10, parallelism);
             } else {
-                service = Executors.newFixedThreadPool(parallelism);
+                service = Executors.newWorkStealingPool(parallelism);
             }
         }
 
@@ -43,7 +43,7 @@ public class BenchmarkSalsa {
 
     @Benchmark
     @Group("producers")
-    @GroupThreads(1) // 1 producer for start
+    @GroupThreads(2) // todo change during tests
     @BenchmarkMode(Mode.Throughput)
     public double measure(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
         return e.service.submit(new Task(s)).get();
