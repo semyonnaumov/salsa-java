@@ -3,26 +3,25 @@ package com.naumov;
 import com.naumov.taskpool.TaskPool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.*;
 import java.util.stream.Collectors;
 
 public class TaskPoolExecutor extends AbstractExecutorService {
     private final TaskPool taskPool;
-    private final int nConsumers;
     private final List<Worker> consumers;
 
     public TaskPoolExecutor(TaskPool taskPool, int nConsumers) {
         this.taskPool = taskPool;
-        this.nConsumers = nConsumers;
 
         // init consumers
         List<Worker> workers = new ArrayList<>();
         for (int i = 0; i < nConsumers; i++) {
-            Worker consumer = new Worker("TaskPool-consumer-" + i);
+            Worker consumer = new Worker(i);
             workers.add(consumer);
         }
-        this.consumers =  workers;
+        consumers = Collections.unmodifiableList(workers);
 
         ThreadUtil.logMajorAction("starting workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
         consumers.forEach(Thread::start);
@@ -33,8 +32,8 @@ public class TaskPoolExecutor extends AbstractExecutorService {
      */
     class Worker extends Thread {
 
-        public Worker(String name) {
-            super(name);
+        public Worker(int id) {
+            super("TaskPool-consumer-" + id);
         }
 
         @Override
@@ -42,6 +41,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
             ThreadUtil.logMajorAction("started");
             while (!this.isInterrupted()) {
                 Runnable task = taskPool.get();
+
                 if (task != null) {
                     ThreadUtil.logAction("extracted task: " + task);
                     task.run(); // todo introduce exponential backoff here? (when pool is empty)
