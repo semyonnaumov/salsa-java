@@ -8,36 +8,36 @@ import java.util.function.Predicate;
  * Single-writer multi-reader linked list, used in {@link SalsaSCPool}'s {@code chunkLists} field.
  * todo add more details
  */
-public class SalsaNodeList implements Iterable<Node> {
+public class SWMRList<E> implements Iterable<E> {
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
 
     // two different objects for head and tail sentinels
-    private final ListNode head;
-    private final ListNode tail;
+    private final ListNode<E> head;
+    private final ListNode<E> tail;
 
-    public SalsaNodeList() {
-        head = new ListNode(null);
-        tail = new ListNode(null);
+    public SWMRList() {
+        head = new ListNode<>(null);
+        tail = new ListNode<>(null);
         head.next = tail;
     }
 
-    public void add(Node node) {
-        add(node, null, false);
+    public void add(E item) {
+        add(item, null, false);
     }
 
-    public void addWithMinorCleanup(Node item, Predicate<Node> cleanupPredicate) {
+    public void addWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
         add(item, cleanupPredicate, false);
     }
 
-    public void addWithTotalCleanup(Node item, Predicate<Node> cleanupPredicate) {
+    public void addWithTotalCleanup(E item, Predicate<E> cleanupPredicate) {
         add(item, cleanupPredicate, true);
     }
 
-    private void add(Node item, Predicate<Node> cleanupPredicate, boolean isTotalCleanup) {
+    private void add(E item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
         checkOwner();
         if (item == null) throw new NullPointerException("Null items are not allowed");
 
-        ListNode current = head;
+        ListNode<E> current = head;
 
         boolean deletedOne = false;
         while (current.next != tail) {
@@ -56,30 +56,28 @@ public class SalsaNodeList implements Iterable<Node> {
             if (current.next != tail) current = current.next;
         }
 
-        ListNode listNode = new ListNode(item);
+        ListNode<E> listNode = new ListNode<>(item);
         listNode.next = tail;
         current.next = listNode;
-
-        return;
     }
 
-    public boolean remove(Node item) {
+    public boolean remove(E item) {
         return remove(item, null, false);
     }
 
-    public boolean removeWithMinorCleanup(Node item, Predicate<Node> cleanupPredicate) {
+    public boolean removeWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, false);
     }
 
-    public boolean removeWithTotalCleanup(Node item, Predicate<Node> cleanupPredicate) {
+    public boolean removeWithTotalCleanup(E item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, true);
     }
 
-    public boolean remove(Object item, Predicate<Node> cleanupPredicate, boolean isTotalCleanup) {
+    public boolean remove(E item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
         checkOwner();
         if (item == null) throw new NullPointerException("Null items are not allowed");
 
-        ListNode current = head;
+        ListNode<E> current = head;
         if (current.next == tail) return false; // empty list
 
         boolean deletedOne = false;
@@ -88,7 +86,7 @@ public class SalsaNodeList implements Iterable<Node> {
             if (cleanupPredicate != null && (!deletedOne || isTotalCleanup)) {
                 if (cleanupPredicate.test(current.next.item)) {
                     // delete next item
-                    ListNode next = current.next;
+                    ListNode<E> next = current.next;
                     next.deleted = true;
                     current.next = current.next.next;
                     deletedOne = true;
@@ -114,7 +112,7 @@ public class SalsaNodeList implements Iterable<Node> {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
-        throw new UnsupportedOperationException(SalsaNodeList.class.getSimpleName()
+        throw new UnsupportedOperationException(SWMRList.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
     }
 
@@ -123,16 +121,16 @@ public class SalsaNodeList implements Iterable<Node> {
      * @return
      */
     @Override
-    public Iterator<Node> iterator() {
+    public Iterator<E> iterator() {
         return new SWMRIterator();
     }
 
-    private static class ListNode {
-        private volatile ListNode next;
-        private final Node item;
+    private static class ListNode<E> {
+        private volatile ListNode<E> next;
+        private final E item;
         private volatile boolean deleted = false; // for iterators only
 
-        public ListNode(Node item) {
+        public ListNode(E item) {
             this.item = item;
         }
     }
@@ -143,9 +141,9 @@ public class SalsaNodeList implements Iterable<Node> {
      * 2. May not see additions after iterator was created
      * 3. Must see deletions of uniterated elements, added before the iterator was created
      */
-    private class SWMRIterator implements Iterator<Node> {
-        private ListNode current = head; // отсюда смотрим в next, когда зовем hasNext
-        private ListNode currentNext = head.next; // мы это запоминаем когда зовем hasNext и возвращаем в next
+    private class SWMRIterator implements Iterator<E> {
+        private ListNode<E> current = head; // отсюда смотрим в next, когда зовем hasNext
+        private ListNode<E> currentNext = head.next; // мы это запоминаем когда зовем hasNext и возвращаем в next
 
         @Override
         public boolean hasNext() {
@@ -169,10 +167,10 @@ public class SalsaNodeList implements Iterable<Node> {
 
         // не учитывает удаленные ноды после while (currentNext.deleted && currentNext != tail) {
         @Override
-        public Node next() {
+        public E next() {
             if (currentNext == tail) throw new NoSuchElementException("No more elements to traverse");
 
-            Node item = currentNext.item; // то, что вернем
+            E item = currentNext.item; // то, что вернем
             current = currentNext; // подвинемся вперед
             currentNext = currentNext.next;
 

@@ -15,8 +15,7 @@ public class BenchmarkSalsa {
 
     @State(Scope.Benchmark)
     public static class ExecutorWrapper {
-//        @Param({"1", "2", "4", "6", "8", "10", "12", "14", "16"})
-        @Param({"2", "4", "6", "8"})
+        @Param({"1", "2", "4", "6", "8"})
         public int parallelism;
 
         @Param({"SALSA", "FJP", "TPE"})

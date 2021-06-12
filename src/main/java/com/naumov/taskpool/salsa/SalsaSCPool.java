@@ -20,7 +20,7 @@ public class SalsaSCPool implements SCPool {
     private final int nConsumers;
 
     // shared state
-    private final CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> chunkLists; // shared among all actors
+    private final CopyOnWriteArrayList<SWMRList<Node>> chunkLists; // shared among all actors
     private final AtomicIntegerArray emptyIndicators; // shared among all consumers
     private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks,
                                                                           // shared among owner and producers
@@ -39,16 +39,16 @@ public class SalsaSCPool implements SCPool {
     }
 
     // todo check
-    private CopyOnWriteArrayList<SomeSingleWriterMultiReaderList<Node>> initChunkLists(int producersCount) {
+    private CopyOnWriteArrayList<SWMRList<Node>> initChunkLists(int producersCount) {
 
         // one-time used template for chunkLists
-        final List<SomeSingleWriterMultiReaderList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
+        final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
 
         for (int i = 0; i < producersCount; i++) {
-            chunkListsTemplate.add(new SomeSingleWriterMultiReaderList<>());
+            chunkListsTemplate.add(new SWMRList<>());
         }
 
-        SomeSingleWriterMultiReaderList<Node> stealList = new SomeSingleWriterMultiReaderList<>();
+        SWMRList<Node> stealList = new SWMRList<>();
         chunkListsTemplate.add(stealList);
 
         return new CopyOnWriteArrayList<>(chunkListsTemplate);
@@ -143,8 +143,8 @@ public class SalsaSCPool implements SCPool {
 
         final Node node = new Node();
         node.setChunk(newChunk);
-        // todo iterate through all list to delete used nodes
-        chunkLists.get(producerContext.getProducerId()).add(node); // add new node to producer's own chunk list
+        // todo check how cleanup's working
+        chunkLists.get(producerContext.getProducerId()).addWithTotalCleanup(node, aNode -> aNode.getChunk() == null); // add new node to producer's own chunk list
         producerContext.chunk = newChunk;
         producerContext.prodIdx = 0;
         return true;
@@ -162,7 +162,7 @@ public class SalsaSCPool implements SCPool {
         }
 
         // traverse chunkLists
-        for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
+        for (SWMRList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
                 Chunk chunk = node.getChunk();
                 if (chunk != null && chunk.getOwner().get() == consumerId) {
@@ -258,9 +258,10 @@ public class SalsaSCPool implements SCPool {
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || chunk.getTasks().get(prevIdx + 1) == null) return null;
 
-        SomeSingleWriterMultiReaderList<Node> myStealList = chunkLists.get(nProducers);
+        SWMRList<Node> myStealList = chunkLists.get(nProducers);
 
-        myStealList.add(prevNode); // make it stealable from my list
+        // todo check how cleanup's working
+        myStealList.addWithTotalCleanup(prevNode, aNode -> aNode.getChunk() == null); // make it stealable from my list
         if (!chunk.getOwner().compareAndSet(((SalsaSCPool) otherSCPool).consumerId, consumerId)) {
             myStealList.remove(prevNode); // failed to steal, remove last
             return null;
@@ -340,14 +341,12 @@ public class SalsaSCPool implements SCPool {
      * @param i chunk list index to look for a chunk
      */
     private Node scanChunkListAtIndex(SalsaSCPool otherSCPool, int i) {
-        SomeSingleWriterMultiReaderList<Node> nodes = otherSCPool.chunkLists.get(i);
-        if (!nodes.isEmpty()) { // todo consider performance issues
-            // make a snapshot to iterate through
-            CopyOnWriteArrayList<Node> snapshot = new CopyOnWriteArrayList<>(nodes);
-            for (Node node : snapshot) {
-                Chunk chunk = node.getChunk();
-                if (chunk != null && node.getIdx() + 1 != chunkSize) return node; // found chunk possibly with tasks
-            }
+        SWMRList<Node> chunkList = otherSCPool.chunkLists.get(i);
+
+        // todo iterate over a snapshot as before?
+        for (Node node : chunkList) {
+            Chunk chunk = node.getChunk();
+            if (chunk != null && node.getIdx() + 1 != chunkSize) return node; // found chunk possibly with tasks
         }
 
         return null;
@@ -356,7 +355,7 @@ public class SalsaSCPool implements SCPool {
     @Override
     @PermitAll
     public boolean isEmpty() {
-        for (SomeSingleWriterMultiReaderList<Node> chunkList : chunkLists) {
+        for (SWMRList<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
                 int idx = node.getIdx();
                 Chunk chunk = node.getChunk();
