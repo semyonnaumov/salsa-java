@@ -3,7 +3,7 @@ package com.naumov.taskpool.salsa;
 /**
  * Represents a {@link Chunk} wrapper with field {@code idx}, which points to the last taken (or about to be taken)
  * {@link Runnable} task in a {@code chunk}. Must not override {@link Object#equals(Object)} and {@link Object#hashCode()}
- * methods since reference comparison is used for deletion from it's containers.
+ * methods since reference comparison is used for deletion from its containers.
  */
 public class Node {
     private volatile int idx = -1;

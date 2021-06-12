@@ -177,4 +177,11 @@ public class SWMRList<E> implements Iterable<E> {
             return item;
         }
     }
+
+    @Override
+    public String toString() {
+        return "SWMRList{" +
+                "ownerId=" + ownerId.get() +
+                '}';
+    }
 }

@@ -22,8 +22,7 @@ public class SalsaSCPool implements SCPool {
     // shared state
     private final CopyOnWriteArrayList<SWMRList<Node>> chunkLists; // shared among all actors
     private final AtomicIntegerArray emptyIndicators; // shared among all consumers
-    private final Queue<Chunk> chunkPool = new ConcurrentLinkedQueue<>(); // M-S queue for spare chunks,
-                                                                          // shared among owner and producers
+    private final Queue<Chunk> chunkPool; // M-S queue for spare chunks, shared among owner and producers
 
     // ThreadLocals
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
@@ -34,8 +33,10 @@ public class SalsaSCPool implements SCPool {
         this.chunkSize = chunkSize;
         this.nProducers = nProducers;
         this.nConsumers = nConsumers;
+
         this.chunkLists = initChunkLists(nProducers);
         this.emptyIndicators = new AtomicIntegerArray(nConsumers);
+        this.chunkPool = new ConcurrentLinkedQueue<>();
     }
 
     // todo check
@@ -420,7 +421,7 @@ public class SalsaSCPool implements SCPool {
     }
 
     private static class OwnerContext {
-        private Node currentNode = null; // todo need volatile???
+        private Node currentNode = null;
 
         public Node getCurrentNode() {
             return currentNode;

@@ -4,10 +4,14 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
+/**
+ * Wrapper for an array of tasks, which is a minimal unit of task stealing. Field {@code owner} represents
+ * the consumer, owning this chunk, and is used for synchronization during stealing.
+ */
 public class Chunk {
     private final int chunkSize;
     private final AtomicInteger owner;
-    private volatile AtomicReferenceArray<Runnable> tasks; // todo change to final and not use clear()?
+    private final AtomicReferenceArray<Runnable> tasks;
 
     public Chunk(int chunkSize, int owner) {
         if (chunkSize <= 0) throw new IllegalArgumentException("chunkSize must be a positive number");
@@ -18,7 +22,7 @@ public class Chunk {
     }
 
     /**
-     * Copying constructor
+     * Copying constructor.
      * @param other chunk to copy
      */
     public Chunk(Chunk other) {
@@ -44,12 +48,6 @@ public class Chunk {
         return tasks;
     }
 
-    // todo consider deleting this method
-    public void clear() {
-        this.tasks = new AtomicReferenceArray<>(chunkSize);
-    }
-
-    // not thread-safe for sequential tests
     @Override
     public boolean equals(Object obj) {
         if (obj == this) return true;
@@ -66,7 +64,6 @@ public class Chunk {
         return false;
     }
 
-    // not thread-safe for sequential tests
     @Override
     public int hashCode() {
         int accumulatedHash = 0;
