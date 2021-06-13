@@ -7,7 +7,7 @@ import static org.junit.Assert.*;
 
 // simple sequential tests
 public class SalsaSCPoolTest {
-    private SalsaSCPool pool;
+    private SalsaSCPool zeroOwnerPool;
 
     private SalsaSCPool unpopulatedPool(int ownerId) {
         return new SalsaSCPool(ownerId, 1000, 10, 10);
@@ -15,72 +15,77 @@ public class SalsaSCPoolTest {
 
     @Before
     public void initSCPool() {
-        pool = unpopulatedPool(0);
+        zeroOwnerPool = unpopulatedPool(0);
     }
 
     @Test
     public void emptyAtStart() {
-        assertTrue(pool.isEmpty());
+        assertTrue(zeroOwnerPool.isEmpty());
     }
 
     @Test
     public void produceWithoutRegistration() {
-        assertThrows(IllegalStateException.class, () -> pool.produce(() -> {}));
-        assertThrows(IllegalStateException.class, () -> pool.produceForce(() -> {}));
+        assertThrows(IllegalStateException.class, () -> zeroOwnerPool.produce(() -> {
+        }));
+        assertThrows(IllegalStateException.class, () -> zeroOwnerPool.produceForce(() -> {
+        }));
     }
 
     @Test
     public void produceToEmptyPool() {
-        pool.registerProducer(0);
+        zeroOwnerPool.registerProducer(0);
 
         // produce fails since newly initialized pool has zero capacity
-        assertFalse(pool.produce(() -> {}));
-        assertTrue(pool.isEmpty());
+        assertFalse(zeroOwnerPool.produce(() -> {
+        }));
+        assertTrue(zeroOwnerPool.isEmpty());
     }
 
 
     @Test
     public void produceForceToEmptyPool() {
-        pool.registerProducer(0);
+        zeroOwnerPool.registerProducer(0);
 
         // produceForce expands zero capacity pool
-        pool.produceForce(() -> {});
-        assertFalse(pool.isEmpty());
+        zeroOwnerPool.produceForce(() -> {
+        });
+        assertFalse(zeroOwnerPool.isEmpty());
     }
 
     @Test
     public void consumeWithoutRegistration() {
-        assertThrows(IllegalStateException.class, () -> pool.consume());
+        assertThrows(IllegalStateException.class, () -> zeroOwnerPool.consume());
     }
 
     @Test
     public void consumeFromEmpty() {
-        pool.registerOwner();
-        assertNull(pool.consume());
+        zeroOwnerPool.registerOwner();
+        assertNull(zeroOwnerPool.consume());
     }
 
     @Test
     public void consumeNormally() {
-        pool.registerProducer(0);
-        Runnable runnable = () -> {};
-        pool.produceForce(runnable);
+        zeroOwnerPool.registerProducer(0);
+        Runnable runnable = () -> {
+        };
+        zeroOwnerPool.produceForce(runnable);
 
-        pool.registerOwner();
-        assertEquals(pool.consume(), runnable);
-        assertNull(pool.consume());
-        assertTrue(pool.isEmpty());
+        zeroOwnerPool.registerOwner();
+        assertEquals(zeroOwnerPool.consume(), runnable);
+        assertNull(zeroOwnerPool.consume());
+        assertTrue(zeroOwnerPool.isEmpty());
     }
 
     @Test
     public void stealFromYourself() {
-        pool.registerOwner();
-        assertThrows(IllegalArgumentException.class, () -> pool.steal(pool));
+        zeroOwnerPool.registerOwner();
+        assertThrows(IllegalArgumentException.class, () -> zeroOwnerPool.steal(zeroOwnerPool));
     }
 
     @Test
     public void stealFromEmptyOther() {
-        pool.registerOwner();
-        assertNull(pool.steal(unpopulatedPool(1)));
+        zeroOwnerPool.registerOwner();
+        assertNull(zeroOwnerPool.steal(unpopulatedPool(1)));
     }
 
     @Test
@@ -88,37 +93,76 @@ public class SalsaSCPoolTest {
         SalsaSCPool otherPool = unpopulatedPool(1);
         otherPool.registerProducer(0);
 
-        Runnable runnable = () -> {};
+        Runnable runnable = () -> {
+        };
         otherPool.produceForce(runnable);
 
         assertFalse(otherPool.isEmpty());
-        assertTrue(pool.isEmpty());
+        assertTrue(zeroOwnerPool.isEmpty());
 
-        pool.registerOwner();
+        zeroOwnerPool.registerOwner();
 
-        assertEquals(pool.steal(otherPool), runnable);
+        assertEquals(zeroOwnerPool.steal(otherPool), runnable);
         assertTrue(otherPool.isEmpty());
-        assertTrue(pool.isEmpty()); // true since the task was removed from the pool after stealing
+        assertTrue(zeroOwnerPool.isEmpty()); // true since the task was removed from the pool after stealing
     }
 
     @Test
     public void stealChunkWith2Tasks() {
-        SalsaSCPool otherSCPool = unpopulatedPool(1);
-        otherSCPool.registerProducer(0);
+        SalsaSCPool otherPool = unpopulatedPool(1);
+        otherPool.registerProducer(0);
 
-        Runnable runnable0 = () -> {};
-        Runnable runnable1 = () -> {};
-        otherSCPool.produceForce(runnable0);
-        otherSCPool.produceForce(runnable1);
+        Runnable runnable0 = () -> {
+        };
+        Runnable runnable1 = () -> {
+        };
+        otherPool.produceForce(runnable0);
+        otherPool.produceForce(runnable1);
 
-        assertFalse(otherSCPool.isEmpty());
-        assertTrue(pool.isEmpty());
+        assertFalse(otherPool.isEmpty());
+        assertTrue(zeroOwnerPool.isEmpty());
 
-        pool.registerOwner();
+        zeroOwnerPool.registerOwner();
 
-        assertEquals(pool.steal(otherSCPool), runnable0);
-        assertTrue(otherSCPool.isEmpty());
-        assertFalse(pool.isEmpty()); // false since second task is not extracted yet
-        assertEquals(pool.consume(), runnable1); // true since second task is not extracted yet
+        assertEquals(zeroOwnerPool.steal(otherPool), runnable0);
+        assertTrue(otherPool.isEmpty());
+        assertFalse(zeroOwnerPool.isEmpty()); // false since second task is not extracted yet
+        assertEquals(zeroOwnerPool.consume(), runnable1); // true since second task is not extracted yet
+    }
+
+    @Test
+    public void emptyIndicatorOnConsume() {
+        zeroOwnerPool.registerOwner();
+        for (int i = 0; i < 32; i++) assertFalse(zeroOwnerPool.checkIndicator(i));
+        for (int i = 0; i < 32; i++) zeroOwnerPool.setIndicator(i);
+        for (int i = 0; i < 32; i++) assertTrue(zeroOwnerPool.checkIndicator(i));
+
+        Runnable runnable = () -> {};
+        zeroOwnerPool.registerProducer(0);
+        zeroOwnerPool.produceForce(runnable);
+        assertFalse(zeroOwnerPool.isEmpty());
+        assertEquals(zeroOwnerPool.consume(), runnable);
+
+        for (int i = 0; i < 32; i++) assertFalse(zeroOwnerPool.checkIndicator(i)); // indicators should have been cleaned
+    }
+
+    @Test
+    public void emptyIndicatorOnSteal() {
+        zeroOwnerPool.registerOwner();
+
+        SalsaSCPool otherPool = unpopulatedPool(1);
+
+        for (int i = 0; i < 32; i++) assertFalse(otherPool.checkIndicator(i));
+        for (int i = 0; i < 32; i++) otherPool.setIndicator(i);
+        for (int i = 0; i < 32; i++) assertTrue(otherPool.checkIndicator(i));
+
+        otherPool.registerProducer(0);
+        Runnable runnable = () -> {};
+        otherPool.produceForce(runnable);
+        assertFalse(otherPool.isEmpty());
+        assertTrue(zeroOwnerPool.isEmpty());
+        assertEquals(zeroOwnerPool.steal(otherPool), runnable);
+
+        for (int i = 0; i < 32; i++) assertFalse(otherPool.checkIndicator(i)); // indicators should have been cleaned
     }
 }

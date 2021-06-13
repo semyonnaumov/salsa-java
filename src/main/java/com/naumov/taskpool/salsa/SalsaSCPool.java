@@ -250,18 +250,27 @@ public class SalsaSCPool implements SCPool {
 
     // todo есть разница между новой и старой статьями!
     /**
-     * Called by pool owner to steal a task (and a chunk, holding it) from another consumer
+     * Called by pool owner to steal a task (and a chunk, holding it) from another consumer.
+     * Throws {@link IllegalArgumentException} when called with SCPool, other than {@link SalsaSCPool}.
      *
-     * @param otherSCPool other's consumer pool
+     * @param otherSCPool other's consumer pool, than must be {@link SalsaSCPool}
      * @return stolen task or {@code null}
      */
     @Override
     @PermitOwner
     public Runnable steal(SCPool otherSCPool) {
-        checkOwnerRegistration();
-        if (otherSCPool == this) throw new IllegalArgumentException("Stealing from yourself is not supported");
+        SalsaSCPool otherSalsaSCPool;
+        try {
+             otherSalsaSCPool = (SalsaSCPool) otherSCPool;
+        } catch (ClassCastException e) {
+            throw new IllegalArgumentException("Steal operation from pool, other than "
+                    + SalsaSCPool.class.getSimpleName() + " is not supported");
+        }
 
-        StolenNodeWrapper prevNodeWrapper = getNode((SalsaSCPool) otherSCPool);
+        checkOwnerRegistration();
+        if (otherSalsaSCPool == this) throw new IllegalArgumentException("Stealing from yourself is not supported");
+
+        StolenNodeWrapper prevNodeWrapper = getNode(otherSalsaSCPool);
         Node prevNode = prevNodeWrapper != null ? prevNodeWrapper.node : null;
         if (prevNode == null) return null; // no chunks found
 
@@ -281,7 +290,7 @@ public class SalsaSCPool implements SCPool {
             return null;
         }
 
-        clearIndicator(); // for isEmpty()
+        otherSalsaSCPool.clearIndicator(); // for isEmpty()
 
         int idx = prevNode.getIdx();
         if (idx + 1 == chunkSize) {
