@@ -10,7 +10,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
-import java.util.concurrent.atomic.AtomicIntegerArray;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class SalsaSCPool implements SCPool {
 
@@ -22,7 +22,7 @@ public class SalsaSCPool implements SCPool {
 
     // shared state
     private final CopyOnWriteArrayList<CopyOnWriteArrayList<Node>> chunkLists; // shared among all actors
-    private final AtomicIntegerArray emptyIndicators; // shared among all consumers
+    private final AtomicInteger emptyIndicator; // shared among all consumers
     private final Queue<Chunk> chunkPool; // M-S queue for spare chunks, shared among owner and producers
 
     // ThreadLocals
@@ -30,13 +30,16 @@ public class SalsaSCPool implements SCPool {
     private final ThreadLocal<OwnerContext> ownerContextThreadLocal = ThreadLocal.withInitial(() -> null);
 
     public SalsaSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers) {
+        if (consumerId < 0 || consumerId > 31) throw new IllegalArgumentException("Available consumer ids are [0, 31]");
+        if (nConsumers > 32) throw new IllegalArgumentException("Maximum number of consumers is 32");
+
         this.consumerId = consumerId;
         this.chunkSize = chunkSize;
         this.nProducers = nProducers;
         this.nConsumers = nConsumers;
 
         this.chunkLists = initChunkLists(nProducers);
-        this.emptyIndicators = new AtomicIntegerArray(nConsumers);
+        this.emptyIndicator = new AtomicInteger(0); // all bits are unset
         this.chunkPool = new ConcurrentLinkedQueue<>();
     }
 
@@ -239,10 +242,10 @@ public class SalsaSCPool implements SCPool {
             node.setChunk(null);
             chunkPool.add(new Chunk(chunkSize, consumerId));
             ownerContextThreadLocal.get().currentNode = null;
-            clearIndicators();
+            clearIndicator();
         }
 
-        if (taskNextToCurrent == null) clearIndicators(); // pool could have become empty, tell others to check this
+        if (taskNextToCurrent == null) clearIndicator(); // pool could have become empty, tell others to check this
     }
 
     // todo есть разница между новой и старой статьями!
@@ -278,7 +281,7 @@ public class SalsaSCPool implements SCPool {
             return null;
         }
 
-        clearIndicators(); // for isEmpty() todo check
+        clearIndicator(); // for isEmpty()
 
         int idx = prevNode.getIdx();
         if (idx + 1 == chunkSize) {
@@ -393,19 +396,23 @@ public class SalsaSCPool implements SCPool {
     @Override
     @PermitConsumers
     public void setIndicator(int consumerId) {
-        emptyIndicators.set(consumerId, 1);
+        int indicator;
+        int upBit;
+        do {
+            indicator = emptyIndicator.get();
+            upBit = indicator | (1 << consumerId);
+        } while (!emptyIndicator.compareAndSet(indicator, upBit) && !Thread.currentThread().isInterrupted());
     }
 
     @Override
     @PermitConsumers
     public boolean checkIndicator(int consumerId) {
-        return emptyIndicators.get(consumerId) == 1;
+        int indicator = emptyIndicator.get();
+        return ((indicator >> consumerId) & 1) == 1;
     }
 
-    private void clearIndicators() {
-        for (int i = 0; i < nConsumers; i++) {
-            emptyIndicators.set(i, 0);
-        }
+    private void clearIndicator() {
+        emptyIndicator.set(0);
     }
 
     private static class ProducerContext {
