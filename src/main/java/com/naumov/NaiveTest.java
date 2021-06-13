@@ -17,8 +17,8 @@ public class NaiveTest {
 
     public static void main(String[] args) throws InterruptedException {
         final int NUMBER_OF_PRODUCERS = 1;
-        final int NUMBER_OF_CONSUMERS = 3;
-        final long RUNTIME_MS = 10000L;
+        final int NUMBER_OF_CONSUMERS = 2;
+        final long RUNTIME_MS = 600000L;
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
@@ -30,12 +30,27 @@ public class NaiveTest {
         for (int i = 0; i < NUMBER_OF_PRODUCERS; i++) {
             Thread producer = new Thread(() -> {
                 ThreadUtil.logMajorAction("started");
-                while (!Thread.currentThread().isInterrupted()) {
+                outer: while (!Thread.currentThread().isInterrupted()) {
                     ThreadUtil.logAction("submit task");
                     try {
                         MathLogTask task = new MathLogTask();
-                        Double aDouble = executorService.submit(new MathLogTask()).get();
-                        System.out.println("a = " + task.a + ", res = " + aDouble); // todo adds additional sync - delete
+                        Future<Double> doubleFuture = executorService.submit(new MathLogTask());
+
+                        int c = 0;
+                        while(c < 100000) {
+                            c++;
+                            if (doubleFuture.isDone()) {
+                                System.out.println("a = " + task.a + ", res = " + doubleFuture.get());
+                                continue outer;
+                            }
+                        }
+
+                        Thread.sleep(3000); // sleep 1s to wait for task completion
+                        if (!doubleFuture.isDone()) {
+                            throw new RuntimeException();
+                        }
+
+                        System.out.println("a = " + task.a + ", res = " + doubleFuture.get());
                     } catch (InterruptedException | ExecutionException e) {
                         ThreadUtil.logMajorAction("interrupted");
                         return;

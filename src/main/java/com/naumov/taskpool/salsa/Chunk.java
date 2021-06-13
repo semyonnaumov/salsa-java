@@ -1,8 +1,8 @@
 package com.naumov.taskpool.salsa;
 
 import java.util.Objects;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.concurrent.atomic.AtomicStampedReference;
 
 /**
  * Wrapper for an array of tasks, which is a minimal unit of task stealing. Field {@code owner} represents
@@ -10,14 +10,18 @@ import java.util.concurrent.atomic.AtomicReferenceArray;
  */
 public class Chunk {
     private final int chunkSize;
-    private final AtomicInteger owner;
+    private final AtomicStampedReference<Integer> owner; // stamped to prevent ABA during steal-back
+                                                         // allows only values from constant pool: [-128, 127]
+                                                         // since boxed Integers are compared by reference
     private final AtomicReferenceArray<Runnable> tasks;
 
     public Chunk(int chunkSize, int owner) {
         if (chunkSize <= 0) throw new IllegalArgumentException("chunkSize must be a positive number");
+        if (owner < Byte.MIN_VALUE || owner > Byte.MAX_VALUE)
+            throw new IllegalArgumentException("Only byte values are allowed for owner field: [-128, 127].");
 
         this.chunkSize = chunkSize;
-        this.owner = new AtomicInteger(owner);
+        this.owner = new AtomicStampedReference<>(owner, Integer.MIN_VALUE);
         this.tasks = new AtomicReferenceArray<>(chunkSize);
     }
 
@@ -30,7 +34,9 @@ public class Chunk {
                 " copying constructor called with null argument");
 
         chunkSize = other.chunkSize;
-        owner = new AtomicInteger(other.owner.get());
+        int[] stampHolder = new int[1];
+        Integer otherOwner = other.owner.get(stampHolder);
+        owner = new AtomicStampedReference<>(otherOwner, stampHolder[0]);
 
         Runnable[] copy = new Runnable[chunkSize];
         for (int i = 0; i < copy.length; i++) {
@@ -40,7 +46,7 @@ public class Chunk {
         tasks = new AtomicReferenceArray<>(copy);
     }
 
-    public AtomicInteger getOwner() {
+    public AtomicStampedReference<Integer> getOwner() {
         return owner;
     }
 
@@ -54,7 +60,15 @@ public class Chunk {
         if (obj instanceof Chunk) {
             Chunk other = (Chunk) obj;
 
-            if (other.chunkSize != this.chunkSize || other.owner.get() != this.owner.get()) return false;
+            int[] thisStampHolder = new int[1];
+            int thisOwnerVal = this.owner.get(thisStampHolder);
+
+            int[] otherStampHolder = new int[1];
+            int otherOwnerVal = this.owner.get(otherStampHolder);
+
+            if (other.chunkSize != this.chunkSize ||
+                    thisOwnerVal != otherOwnerVal ||
+                    thisStampHolder[0] != otherStampHolder[0]) return false;
             for (int i = 0; i < chunkSize; i++) {
                 if (other.tasks.get(i) != this.tasks.get(i)) return false;
             }
@@ -71,13 +85,16 @@ public class Chunk {
             accumulatedHash += Objects.hashCode(this.tasks.get(0));
         }
 
-        return Integer.hashCode(chunkSize) + Integer.hashCode(this.owner.get()) + accumulatedHash;
+        int[] stampHolder = new int[1];
+        int ownerVal = this.owner.get(stampHolder);
+
+        return Integer.hashCode(chunkSize) + Integer.hashCode(ownerVal) + Integer.hashCode(stampHolder[0]) + accumulatedHash;
     }
 
     @Override
     public String toString() {
         return "Chunk{" +
-                "owner=" + owner.get() +
+                "owner=" + owner +
                 ", chunkSize=" + chunkSize +
                 ", tasks=" + tasks +
                 '}';
