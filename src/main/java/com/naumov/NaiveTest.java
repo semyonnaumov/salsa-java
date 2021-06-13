@@ -16,8 +16,8 @@ public class NaiveTest {
     }
 
     public static void main(String[] args) throws InterruptedException {
-        final int NUMBER_OF_PRODUCERS = 4;
-        final int NUMBER_OF_CONSUMERS = 4;
+        final int NUMBER_OF_PRODUCERS = 1;
+        final int NUMBER_OF_CONSUMERS = 3;
         final long RUNTIME_MS = 10000L;
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);

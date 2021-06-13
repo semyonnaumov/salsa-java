@@ -1,6 +1,7 @@
 package com.naumov.taskpool;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -119,7 +120,9 @@ public abstract class AbstractTaskPool implements TaskPool {
                 pIdThreadLocal.set(id);
 
                 // init access list and bind producer
-                pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
+                List<SCPool> allSCPoolsCopy = new ArrayList<>(allSCPools);
+                Collections.shuffle(allSCPoolsCopy);
+                pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPoolsCopy));
                 pAccessListThreadLocal.get().forEach(scPool -> registerProducerOnSCPool(scPool, id));
             } else {
                 // register as consumer
@@ -127,10 +130,12 @@ public abstract class AbstractTaskPool implements TaskPool {
                 cIdThreadLocal.set(id);
 
                 // init access list and bind owner
-                cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPools)); // todo introduce affinity-based sorting here
-                SCPool myPool = cAccessListThreadLocal.get().remove(id);
+                List<SCPool> allSCPoolsCopy = new ArrayList<>(allSCPools);
+                SCPool myPool = allSCPoolsCopy.remove(id);
                 registerOwnerOnSCPool(myPool, id);
                 cSCPoolThreadLocal.set(myPool);
+                Collections.shuffle(allSCPoolsCopy);
+                cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(allSCPoolsCopy));
             }
         } else if (pIdThreadLocal.get() != null && !fromProducerContext) {
             // asked to register already registered producer as consumer

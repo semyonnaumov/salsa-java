@@ -6,7 +6,9 @@ package com.naumov.taskpool.salsa;
  * methods since reference comparison is used for deletion from its containers.
  */
 public class Node {
-    private volatile int idx = -1;
+    private volatile int idx = -1; // last taken task index in the chunk
+                                   // initialized by the thread that created the node (producer/stealer),
+                                   // modified only by the owner of the containing SCPool
     private volatile Chunk chunk;
 
     public Node() {

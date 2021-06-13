@@ -18,7 +18,8 @@ public class BenchmarkSalsa {
         @Param({"1", "2", "4", "6", "8"})
         public int parallelism;
 
-        @Param({"MSQ", "SALSA", "FJP"})
+//        @Param({"MSQ", "SALSA", "FJP"})
+        @Param({"SALSA"})
         public String type;
 
         ExecutorService service;
