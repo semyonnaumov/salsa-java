@@ -19,12 +19,12 @@ public class MSQSCPool implements SCPool {
     }
 
     @Override
-    public boolean produce(Runnable task) {
+    public boolean tryProduce(Runnable task) {
         return container.add(task);
     }
 
     @Override
-    public void produceForce(Runnable task) {
+    public void produce(Runnable task) {
         container.add(task);
     }
 

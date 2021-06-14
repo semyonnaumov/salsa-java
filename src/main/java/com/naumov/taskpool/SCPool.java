@@ -11,7 +11,7 @@ public interface SCPool {
      * @param task task to be inserted
      * @return result of the insertion: it is {@code false} when the pool is full
      */
-    boolean produce(Runnable task);
+    boolean tryProduce(Runnable task);
 
     /**
      * Lets a producer thread insert a task to the pool, expanding it if no space is available.
@@ -19,7 +19,7 @@ public interface SCPool {
      *
      * @param task task to be inserted
      */
-    void produceForce(Runnable task);
+    void produce(Runnable task);
 
     /**
      * Lets the consumer thread, that owns the pool, retrieve a task from it. When it is called by another consumer

@@ -88,7 +88,7 @@ public class SalsaSCPool implements SCPool {
 
     @Override
     @PermitProducers
-    public boolean produce(Runnable task) {
+    public boolean tryProduce(Runnable task) {
         checkProducerRegistration();
 
         return insert(task, false);
@@ -96,7 +96,7 @@ public class SalsaSCPool implements SCPool {
 
     @Override
     @PermitProducers
-    public void produceForce(Runnable task) {
+    public void produce(Runnable task) {
         checkProducerRegistration();
 
         insert(task, true);
@@ -342,18 +342,12 @@ public class SalsaSCPool implements SCPool {
      * @return found node
      */
     private StolenNodeWrapper getNode(SalsaSCPool otherSCPool) {
-        ThreadLocalRandom random = ThreadLocalRandom.current();
-        int startId = random.nextInt(nProducers + 1); // [0, nProducers + 1) accounts for steal-list
+        int size = nProducers + 1;
+        int startIdx = ThreadLocalRandom.current().nextInt(size); // [0, nProducers + 1) accounts for steal-list
 
-        // todo collapse all in one loop with %
         // traverse all entries from a random start circularly to find not empty node
-        for (int i = startId; i <= nProducers; i++) {
-            StolenNodeWrapper nodeWrapper = scanChunkList(otherSCPool.chunkLists.get(i), otherSCPool.consumerId);
-            if (nodeWrapper != null) return nodeWrapper;
-        }
-
-        for (int i = 0; i < startId; i++) {
-            StolenNodeWrapper nodeWrapper = scanChunkList(otherSCPool.chunkLists.get(i), otherSCPool.consumerId);
+        for (int i = startIdx; i < size + startIdx; i++) {
+            StolenNodeWrapper nodeWrapper = scanChunkList(otherSCPool.chunkLists.get(i % size), otherSCPool.consumerId);
             if (nodeWrapper != null) return nodeWrapper;
         }
 
