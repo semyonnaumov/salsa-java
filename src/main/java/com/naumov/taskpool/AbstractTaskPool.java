@@ -8,7 +8,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractTaskPool implements TaskPool {
     private static final int MAX_N_PRODUCERS = 32768;
-    private static final int MAX_N_CONSUMERS = 32768;
+    private static final int MAX_N_CONSUMERS = 32; // can be increased, currently limited due to the emptyIndicator implementation
 
     // unmodifiable shared pool state
     private final int nProducers;

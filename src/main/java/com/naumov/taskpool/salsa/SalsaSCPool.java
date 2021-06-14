@@ -43,8 +43,8 @@ public class SalsaSCPool implements SCPool {
     }
 
     private List<Node> newNodeList() {
-        return new CopyOnWriteArrayList<>();
-//        return new SWMRList<>();
+//        return new CopyOnWriteArrayList<>();
+        return new SWMRList<>();
     }
 
     private CopyOnWriteArrayList<List<Node>> initChunkLists(int producersCount) {
@@ -104,13 +104,13 @@ public class SalsaSCPool implements SCPool {
 
     private void checkProducerRegistration() {
         if (pContextThreadLocal.get() == null) {
-            throw new IllegalStateException("Calling thread wasn't registered as producer.");
+            throw new IllegalCallerException("Calling thread wasn't registered as producer.");
         }
     }
 
     private void checkOwnerRegistration() {
         if (ownerContextThreadLocal.get() == null) {
-            throw new IllegalStateException("Calling thread wasn't registered as owner consumer.");
+            throw new IllegalCallerException("Calling thread wasn't registered as owner consumer.");
         }
     }
 
