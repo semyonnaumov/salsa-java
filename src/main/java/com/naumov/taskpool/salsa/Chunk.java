@@ -6,7 +6,8 @@ import java.util.concurrent.atomic.AtomicStampedReference;
 
 /**
  * Wrapper for an array of tasks, which is a minimal unit of task stealing. Field {@code owner} represents
- * the consumer, owning this chunk, and is used for synchronization during stealing.
+ * the consumer, owning this chunk, and is used for synchronization during stealing. Chunks are created only by
+ * producers when they call {@link com.naumov.taskpool.SCPool#produce(Runnable)} on empty pool.
  */
 public class Chunk {
     private final int chunkSize;
@@ -25,26 +26,28 @@ public class Chunk {
         this.tasks = new AtomicReferenceArray<>(chunkSize);
     }
 
-    /**
-     * Copying constructor.
-     * @param other chunk to copy
-     */
-    public Chunk(Chunk other) {
-        if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
-                " copying constructor called with null argument");
-
-        chunkSize = other.chunkSize;
-        int[] stampHolder = new int[1];
-        Integer otherOwner = other.owner.get(stampHolder);
-        owner = new AtomicStampedReference<>(otherOwner, stampHolder[0]);
-
-        Runnable[] copy = new Runnable[chunkSize];
-        for (int i = 0; i < copy.length; i++) {
-            copy[i] = other.tasks.get(i);
-        }
-
-        tasks = new AtomicReferenceArray<>(copy);
-    }
+// todo no need for copying
+//
+//    /**
+//     * Copying constructor.
+//     * @param other chunk to copy
+//     */
+//    public Chunk(Chunk other) {
+//        if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
+//                " copying constructor called with null argument");
+//
+//        chunkSize = other.chunkSize;
+//        int[] stampHolder = new int[1];
+//        Integer otherOwner = other.owner.get(stampHolder);
+//        owner = new AtomicStampedReference<>(otherOwner, stampHolder[0]);
+//
+//        Runnable[] copy = new Runnable[chunkSize];
+//        for (int i = 0; i < copy.length; i++) {
+//            copy[i] = other.tasks.get(i);
+//        }
+//
+//        tasks = new AtomicReferenceArray<>(copy);
+//    }
 
     public AtomicStampedReference<Integer> getOwner() {
         return owner;

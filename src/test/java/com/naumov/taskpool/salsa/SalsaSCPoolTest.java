@@ -33,7 +33,7 @@ public class SalsaSCPoolTest {
 
     @Test
     public void tryProduceToEmptyPool() {
-        zeroOwnerPool.registerProducer(0);
+        zeroOwnerPool.registerCurrentThreadAsProducer(0);
 
         // produce fails since newly initialized pool has zero capacity
         assertFalse(zeroOwnerPool.tryProduce(() -> {
@@ -44,7 +44,7 @@ public class SalsaSCPoolTest {
 
     @Test
     public void produceToEmptyPool() {
-        zeroOwnerPool.registerProducer(0);
+        zeroOwnerPool.registerCurrentThreadAsProducer(0);
 
         // produceForce expands zero capacity pool
         zeroOwnerPool.produce(() -> {
@@ -59,18 +59,18 @@ public class SalsaSCPoolTest {
 
     @Test
     public void consumeFromEmpty() {
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
         assertNull(zeroOwnerPool.consume());
     }
 
     @Test
     public void consumeNormally() {
-        zeroOwnerPool.registerProducer(0);
+        zeroOwnerPool.registerCurrentThreadAsProducer(0);
         Runnable runnable = () -> {
         };
         zeroOwnerPool.produce(runnable);
 
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
         assertEquals(zeroOwnerPool.consume(), runnable);
         assertNull(zeroOwnerPool.consume());
         assertTrue(zeroOwnerPool.isEmpty());
@@ -78,20 +78,20 @@ public class SalsaSCPoolTest {
 
     @Test
     public void stealFromYourself() {
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
         assertThrows(IllegalArgumentException.class, () -> zeroOwnerPool.steal(zeroOwnerPool));
     }
 
     @Test
     public void stealFromEmptyOther() {
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
         assertNull(zeroOwnerPool.steal(unpopulatedPool(1)));
     }
 
     @Test
     public void stealNormally() {
         SalsaSCPool otherPool = unpopulatedPool(1);
-        otherPool.registerProducer(0);
+        otherPool.registerCurrentThreadAsProducer(0);
 
         Runnable runnable = () -> {
         };
@@ -100,7 +100,7 @@ public class SalsaSCPoolTest {
         assertFalse(otherPool.isEmpty());
         assertTrue(zeroOwnerPool.isEmpty());
 
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
 
         assertEquals(zeroOwnerPool.steal(otherPool), runnable);
         assertTrue(otherPool.isEmpty());
@@ -110,7 +110,7 @@ public class SalsaSCPoolTest {
     @Test
     public void stealChunkWith2Tasks() {
         SalsaSCPool otherPool = unpopulatedPool(1);
-        otherPool.registerProducer(0);
+        otherPool.registerCurrentThreadAsProducer(0);
 
         Runnable runnable0 = () -> {
         };
@@ -122,7 +122,7 @@ public class SalsaSCPoolTest {
         assertFalse(otherPool.isEmpty());
         assertTrue(zeroOwnerPool.isEmpty());
 
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
 
         assertEquals(zeroOwnerPool.steal(otherPool), runnable0);
         assertTrue(otherPool.isEmpty());
@@ -132,14 +132,14 @@ public class SalsaSCPoolTest {
 
     @Test
     public void emptyIndicatorOnConsume() {
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
         for (int i = 0; i < 32; i++) assertFalse(zeroOwnerPool.checkIndicator(i));
         for (int i = 0; i < 32; i++) zeroOwnerPool.setIndicator(i);
         for (int i = 0; i < 32; i++) assertTrue(zeroOwnerPool.checkIndicator(i));
 
         Runnable runnable = () -> {
         };
-        zeroOwnerPool.registerProducer(0);
+        zeroOwnerPool.registerCurrentThreadAsProducer(0);
         zeroOwnerPool.produce(runnable);
         assertFalse(zeroOwnerPool.isEmpty());
         assertEquals(zeroOwnerPool.consume(), runnable);
@@ -150,7 +150,7 @@ public class SalsaSCPoolTest {
 
     @Test
     public void emptyIndicatorOnSteal() {
-        zeroOwnerPool.registerOwner();
+        zeroOwnerPool.registerCurrentThreadAsOwner();
 
         SalsaSCPool otherPool = unpopulatedPool(1);
 
@@ -158,7 +158,7 @@ public class SalsaSCPoolTest {
         for (int i = 0; i < 32; i++) otherPool.setIndicator(i);
         for (int i = 0; i < 32; i++) assertTrue(otherPool.checkIndicator(i));
 
-        otherPool.registerProducer(0);
+        otherPool.registerCurrentThreadAsProducer(0);
         Runnable runnable = () -> {
         };
         otherPool.produce(runnable);

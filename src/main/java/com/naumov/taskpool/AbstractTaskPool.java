@@ -122,8 +122,8 @@ public abstract class AbstractTaskPool implements TaskPool {
         return true;
     }
 
-    protected abstract void registerProducerOnSCPool(SCPool scPool, int producerId);
-    protected abstract void registerOwnerOnSCPool(SCPool scPool, int consumerId);
+    protected abstract void registerCurrentThreadAsProducer(SCPool scPool, int producerId);
+    protected abstract void registerCurrentThreadAsOwner(SCPool scPool, int consumerId);
 
     /**
      * Checks whether a calling thread (producer/consumer) is registered in the task pool and register it if necessary.
@@ -144,7 +144,7 @@ public abstract class AbstractTaskPool implements TaskPool {
                 List<SCPool> accessListTemplate = new ArrayList<>(allSCPools);
                 Collections.shuffle(accessListTemplate); // shuffle for better workload distribution
                 pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(accessListTemplate));
-                pAccessListThreadLocal.get().forEach(scPool -> registerProducerOnSCPool(scPool, id));
+                pAccessListThreadLocal.get().forEach(scPool -> registerCurrentThreadAsProducer(scPool, id));
             } else {
                 // register as consumer
                 int id = tryInitId(false);
@@ -153,7 +153,7 @@ public abstract class AbstractTaskPool implements TaskPool {
                 // init access list and bind owner
                 List<SCPool> accessListTemplate = new ArrayList<>(allSCPools);
                 SCPool myPool = accessListTemplate.remove(id);
-                registerOwnerOnSCPool(myPool, id);
+                registerCurrentThreadAsOwner(myPool, id);
                 cSCPoolThreadLocal.set(myPool);
                 Collections.shuffle(accessListTemplate);
                 cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(accessListTemplate));

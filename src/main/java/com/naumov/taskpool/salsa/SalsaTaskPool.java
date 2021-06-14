@@ -16,7 +16,7 @@ public class SalsaTaskPool extends AbstractTaskPool {
     }
 
     @Override
-    protected void registerProducerOnSCPool(SCPool scPool, int producerId) {
+    protected void registerCurrentThreadAsProducer(SCPool scPool, int producerId) {
         SalsaSCPool salsaSCPool;
         try {
             salsaSCPool = (SalsaSCPool) scPool;
@@ -24,11 +24,11 @@ public class SalsaTaskPool extends AbstractTaskPool {
             throw new InitializationException("Couldn't register producer on SCPool since it's not an instance of" +
                     SalsaSCPool.class.getSimpleName());
         }
-        salsaSCPool.registerProducer(producerId);
+        salsaSCPool.registerCurrentThreadAsProducer(producerId);
     }
 
     @Override
-    protected void registerOwnerOnSCPool(SCPool scPool, int consumerId) {
+    protected void registerCurrentThreadAsOwner(SCPool scPool, int consumerId) {
         SalsaSCPool salsaSCPool;
         try {
             salsaSCPool = (SalsaSCPool) scPool;
@@ -36,6 +36,6 @@ public class SalsaTaskPool extends AbstractTaskPool {
             throw new InitializationException("Couldn't register producer on SCPool since it's not an instance of" +
                     SalsaSCPool.class.getSimpleName());
         }
-        salsaSCPool.registerOwner();
+        salsaSCPool.registerCurrentThreadAsOwner();
     }
 }

@@ -15,12 +15,12 @@ public class MSQTaskPool extends AbstractTaskPool {
     }
 
     @Override
-    protected void registerProducerOnSCPool(SCPool scPool, int producerId) {
+    protected void registerCurrentThreadAsProducer(SCPool scPool, int producerId) {
         // intentionally left blank
     }
 
     @Override
-    protected void registerOwnerOnSCPool(SCPool scPool, int consumerId) {
+    protected void registerCurrentThreadAsOwner(SCPool scPool, int consumerId) {
         // intentionally left blank
     }
 }

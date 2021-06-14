@@ -6,16 +6,18 @@ package com.naumov.taskpool.salsa;
  * methods since reference comparison is used for deletion from its containers.
  */
 public class Node {
-    private volatile int idx = -1; // last taken task index in the chunk
-                                   // initialized by the thread that created the node (producer/stealer),
-                                   // modified only by the owner of the containing SCPool
     private volatile Chunk chunk;
+    private volatile int idx = -1; // index of the last taken task in the chunk
+                                   // needed to sync consumers during stealing
+                                   // initialized by the thread that created the node (producer/stealer),
+                                   // modified only by the owner of the containing SCPool (consumer)
 
-    public Node() {
+    public Node(Chunk chunk) {
+        this.chunk = chunk;
     }
 
     /**
-     * Copying constructor
+     * Copying constructor. Copying is not atomic.
      *
      * @param other node to copy
      */
@@ -23,8 +25,8 @@ public class Node {
         if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
                 " copying constructor called with null argument");
 
+        this.chunk = other.chunk; // copy reference, otherwise chunk could become lost during stealing
         this.idx = other.idx;
-        this.chunk = other.chunk;
     }
 
     public Chunk getChunk() {
