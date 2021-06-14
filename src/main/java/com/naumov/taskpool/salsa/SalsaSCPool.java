@@ -196,10 +196,10 @@ public class SalsaSCPool implements SCPool {
         Runnable task = getTaskAt(chunk, node.getIdx() + 1);
         if (task == null) return null; // no tasks in this chunk
 
-        // todo только эта проверка отсутствует в короткой статье! Вроде она и не нужна: до этих пор мы пока что никак не
-        //  обозначили свое намерение забрать задачу из этого блока, а смысл проверки теряется, т.к. сразу после
-        //  проверки текущий поток может заснуть, а другой поменяет владельца блока. Хотя в статье что-то есть на этот счет
-        if (chunk.getOwner().getReference() != consumerId) return null; // chunk is stolen
+//        // todo только эта проверка отсутствует в короткой статье! Вроде она и не нужна: до этих пор мы пока что никак не
+//        //  обозначили свое намерение забрать задачу из этого блока, а смысл проверки теряется, т.к. сразу после
+//        //  проверки текущий поток может заснуть, а другой поменяет владельца блока. Хотя в статье что-то есть на этот счет
+//        if (chunk.getOwner().getReference() != consumerId) return null; // chunk is stolen
 
         node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx + 1
                                         // atomicity is not needed since only the owner of the SCPool can update idx
@@ -277,8 +277,8 @@ public class SalsaSCPool implements SCPool {
         Chunk chunk = prevNode.getChunk();
         if (chunk == null) return null;
 
-        int prevIdx = prevNode.getIdx();
-        if (prevIdx + 1 == chunkSize || getTaskAt(chunk, prevIdx + 1) == null) return null; // no tasks in the chunk
+//        int prevIdx = prevNode.getIdx();
+//        if (prevIdx + 1 == chunkSize || getTaskAt(chunk, prevIdx + 1) == null) return null; // no tasks in the chunk
 
         List<Node> myStealList = chunkLists.get(nProducers);
         this.removeUsedNodes(myStealList);
@@ -292,25 +292,30 @@ public class SalsaSCPool implements SCPool {
 
         otherSalsaSCPool.clearIndicator(); // for isEmpty()
 
-        int idx = prevNode.getIdx();
-        if (idx + 1 == chunkSize) {
-            // stole used chunk
+//        int idx = prevNode.getIdx();
+//        if (idx + 1 == chunkSize) {
+//            // stole used chunk
+//            myStealList.remove(prevNode);
+//            return null;
+//        }
+//
+//        Runnable task = chunk.getTasks().get(idx + 1);
+//        if (task != null) {
+//            // found the task
+//            if (chunk.getOwner().getReference() != consumerId && idx != prevIdx) {
+//                myStealList.remove(prevNode);
+//                return null;
+//            }
+//            idx++;
+//        }
+
+        Node newNode = new Node(prevNode); // make snapshot copy
+//        newNode.setIdx(idx);
+
+        if (newNode.getIdx() + 1 == chunkSize) {
             myStealList.remove(prevNode);
             return null;
         }
-
-        Runnable task = chunk.getTasks().get(idx + 1);
-        if (task != null) {
-            // found the task
-            if (chunk.getOwner().getReference() != consumerId && idx != prevIdx) {
-                myStealList.remove(prevNode);
-                return null;
-            }
-            idx++;
-        }
-
-        Node newNode = new Node(prevNode); // make snapshot copy
-        newNode.setIdx(idx);
 
         // todo нужно именно в то же место его воткнуть?
         myStealList.remove(prevNode);
@@ -319,11 +324,14 @@ public class SalsaSCPool implements SCPool {
         prevNode.setChunk(null); // remove chunk from consumer's list
 
         // done stealing chunk, take one task from it
+        int idx = newNode.getIdx();
+        Runnable task = getTaskAt(chunk, idx + 1);
         if (task == null) return null; // still no task at idx
-        Runnable next = getTaskAt(chunk, idx + 1); // for isEmpty()
-        if (SalsaTask.TAKEN.equals(task) || !chunk.getTasks().compareAndSet(idx, task, SalsaTask.TAKEN)) task = null;
+        Runnable next = getTaskAt(chunk, idx + 2); // for isEmpty()
+        if (SalsaTask.TAKEN.equals(task) || !chunk.getTasks().compareAndSet(idx + 1, task, SalsaTask.TAKEN)) task = null;
 
-        checkLast(newNode, next);
+        if (task != null) checkLast(newNode, next);
+        newNode.setIdx(newNode.getIdx() + 1);
 
         if (chunk.getOwner().getReference() == consumerId) ownerContextThreadLocal.get().currentNode = newNode;
         return task != null ? ((SalsaTask) task).getTask() : null;
