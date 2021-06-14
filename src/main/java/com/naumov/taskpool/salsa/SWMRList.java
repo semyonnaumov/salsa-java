@@ -8,7 +8,7 @@ import java.util.function.Predicate;
  * Single-writer multi-reader linked list, used in {@link SalsaSCPool}'s {@code chunkLists} field.
  * todo add more details
  */
-public class SWMRList<E> implements Iterable<E> {
+public class SWMRList<E> implements List<E> {
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
 
     // two different objects for head and tail sentinels
@@ -21,8 +21,9 @@ public class SWMRList<E> implements Iterable<E> {
         head.next = tail;
     }
 
-    public void add(E item) {
+    public boolean add(E item) {
         add(item, null, false);
+        return true;
     }
 
     public void addWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
@@ -61,19 +62,19 @@ public class SWMRList<E> implements Iterable<E> {
         current.next = listNode;
     }
 
-    public boolean remove(E item) {
+    public boolean remove(Object item) {
         return remove(item, null, false);
     }
 
-    public boolean removeWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
+    public boolean removeWithMinorCleanup(Object item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, false);
     }
 
-    public boolean removeWithTotalCleanup(E item, Predicate<E> cleanupPredicate) {
+    public boolean removeWithTotalCleanup(Object item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, true);
     }
 
-    public boolean remove(E item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
+    public boolean remove(Object item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
         checkOwner();
         if (item == null) throw new NullPointerException("Null items are not allowed");
 
@@ -108,12 +109,102 @@ public class SWMRList<E> implements Iterable<E> {
         return false;
     }
 
+    @Override
+    public boolean containsAll(Collection<?> c) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean addAll(Collection<? extends E> c) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean addAll(int index, Collection<? extends E> c) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean removeAll(Collection<?> c) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean retainAll(Collection<?> c) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public void clear() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public E get(int index) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public E set(int index, E element) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public void add(int index, E element) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public E remove(int index) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public int indexOf(Object o) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public int lastIndexOf(Object o) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public ListIterator<E> listIterator() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public ListIterator<E> listIterator(int index) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public List<E> subList(int fromIndex, int toIndex) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
     private void checkOwner() {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
         throw new UnsupportedOperationException(SWMRList.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
+    }
+
+    @Override
+    public int size() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean isEmpty() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public boolean contains(Object o) {
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     /**
@@ -123,6 +214,16 @@ public class SWMRList<E> implements Iterable<E> {
     @Override
     public Iterator<E> iterator() {
         return new SWMRIterator();
+    }
+
+    @Override
+    public Object[] toArray() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public <T> T[] toArray(T[] a) {
+        throw new UnsupportedOperationException("Not implemented");
     }
 
     private static class ListNode<E> {
@@ -152,17 +253,14 @@ public class SWMRList<E> implements Iterable<E> {
 
             if (currentNext == tail) return false; // дошли до конца, next вернет Exception
 
-            // todo двигать current если будем натыкаться на currentNext.deleted == true
+            // skip logically deleted nodes
             while (currentNext.deleted && currentNext != tail) {
                 current = currentNext;
                 currentNext = current.next;
             }
 
             // наткнулись на не удаленный либо на конец
-            if (currentNext == tail) return false; // дошли до конца, next вернет Exception
-
-            // нашли не удаленный currentNext!
-            return true;
+            return currentNext != tail; // дошли до конца (next вернет Exception) либо нашли не удаленный currentNext
         }
 
         // не учитывает удаленные ноды после while (currentNext.deleted && currentNext != tail) {

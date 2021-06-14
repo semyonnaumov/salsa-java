@@ -3,7 +3,6 @@ package com.naumov.taskpool.salsa;
 import com.naumov.taskpool.SCPool;
 import com.naumov.taskpool.salsa.annot.*;
 
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -21,7 +20,7 @@ public class SalsaSCPool implements SCPool {
     private final int nConsumers;
 
     // shared state
-    private final CopyOnWriteArrayList<CopyOnWriteArrayList<Node>> chunkLists; // shared among all actors
+    private final CopyOnWriteArrayList<List<Node>> chunkLists; // shared among all actors
     private final AtomicInteger emptyIndicator; // shared among all consumers
     private final Queue<Chunk> chunkPool; // M-S queue for spare chunks, shared among owner and producers
 
@@ -43,15 +42,20 @@ public class SalsaSCPool implements SCPool {
         this.chunkPool = new ConcurrentLinkedQueue<>();
     }
 
-    private CopyOnWriteArrayList<CopyOnWriteArrayList<Node>> initChunkLists(int producersCount) {
+    private List<Node> newNodeList() {
+        return new CopyOnWriteArrayList<>();
+//        return new SWMRList<>();
+    }
+
+    private CopyOnWriteArrayList<List<Node>> initChunkLists(int producersCount) {
         // one-time used template for chunkLists
-        final List<CopyOnWriteArrayList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
+        final List<List<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
         for (int i = 0; i < producersCount; i++) {
-            chunkListsTemplate.add(new CopyOnWriteArrayList<>());
+            chunkListsTemplate.add(newNodeList());
         }
 
         // add steal list
-        chunkListsTemplate.add(new CopyOnWriteArrayList<>());
+        chunkListsTemplate.add(newNodeList());
 
         return new CopyOnWriteArrayList<>(chunkListsTemplate);
     }
@@ -166,7 +170,7 @@ public class SalsaSCPool implements SCPool {
         }
 
         // wasn't able to get a task from the currentNode (null/empty/stolen), traverse chunkLists
-        for (CopyOnWriteArrayList<Node> chunkList : chunkLists) {
+        for (List<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
                 Chunk chunk = node.getChunk();
                 if (chunk != null && chunk.getOwner().getReference() == consumerId) {
@@ -280,7 +284,7 @@ public class SalsaSCPool implements SCPool {
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || chunk.getTasks().get(prevIdx + 1) == null) return null; // no tasks in the chunk
 
-        CopyOnWriteArrayList<Node> myStealList = chunkLists.get(nProducers);
+        List<Node> myStealList = chunkLists.get(nProducers);
 
         // todo check how cleanup's working
         myStealList.add(prevNode); // make it stealable from my list
@@ -364,7 +368,7 @@ public class SalsaSCPool implements SCPool {
      * @param chunkList other consumer's chunkList
      * @param soughtOwner consumer, expected to be the owner of this chunk
      */
-    private StolenNodeWrapper scanChunkList(CopyOnWriteArrayList<Node> chunkList, int soughtOwner) {
+    private StolenNodeWrapper scanChunkList(List<Node> chunkList, int soughtOwner) {
 
         for (Node node : chunkList) {
             Chunk chunk = node.getChunk();
@@ -387,7 +391,7 @@ public class SalsaSCPool implements SCPool {
     @Override
     @PermitAll
     public boolean isEmpty() {
-        for (CopyOnWriteArrayList<Node> chunkList : chunkLists) {
+        for (List<Node> chunkList : chunkLists) {
             for (Node node : chunkList) {
                 Chunk chunk = node.getChunk();
                 if (chunk == null) continue;

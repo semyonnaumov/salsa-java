@@ -44,7 +44,7 @@ public class BenchmarkSalsa {
 
     @Benchmark
     @Group("producers")
-    @GroupThreads(2) // todo change during tests
+    @GroupThreads(1) // 1 producer for start
     @BenchmarkMode(Mode.Throughput)
     public double measure(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
         return e.service.submit(new Task(s)).get();
