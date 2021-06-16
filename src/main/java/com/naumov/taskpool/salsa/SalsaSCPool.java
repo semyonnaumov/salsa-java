@@ -270,12 +270,13 @@ public class SalsaSCPool implements SCPool {
         checkOwnerRegistration();
         if (otherSalsaSCPool == this) throw new IllegalArgumentException("Stealing from yourself is not supported");
 
-        StolenNodeWrapper prevNodeWrapper = getNode(otherSalsaSCPool);
-        Node prevNode = prevNodeWrapper != null ? prevNodeWrapper.node : null;
+        Node prevNode = getNode(otherSalsaSCPool);
         if (prevNode == null) return null; // no chunks found
 
         Chunk chunk = prevNode.getChunk();
         if (chunk == null) return null;
+        int stamp = chunk.getOwner().getStamp(); // before reading prevIdx remember the stamp to detect possible
+                                                 // ABA later by CAS (if stamp has changed, prevIdx is obsolete)
 
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || getTaskAt(chunk, prevIdx + 1) == null) return null; // no tasks in the chunk
@@ -284,8 +285,7 @@ public class SalsaSCPool implements SCPool {
         this.removeUsedNodes(myStealList);
         myStealList.add(prevNode); // make it stealable from my list
 
-        if (!chunk.getOwner().compareAndSet(prevNodeWrapper.inspectedChunkOwner, consumerId,
-                prevNodeWrapper.inspectedChunkStamp, prevNodeWrapper.inspectedChunkStamp + 1)) {
+        if (!chunk.getOwner().compareAndSet(otherSalsaSCPool.consumerId, consumerId, stamp, stamp + 1)) {
             myStealList.remove(prevNode); // failed to steal (somebody else stole it), remove it
             return null;
         }
@@ -337,7 +337,7 @@ public class SalsaSCPool implements SCPool {
      * @param otherSCPool other consumer's {@link SalsaSCPool}
      * @return found node
      */
-    private StolenNodeWrapper getNode(SalsaSCPool otherSCPool) {
+    private Node getNode(SalsaSCPool otherSCPool) {
         int size = nProducers + 1;
         int startIdx = ThreadLocalRandom.current().nextInt(size); // [0, nProducers + 1) accounts for steal-list
 
@@ -346,12 +346,10 @@ public class SalsaSCPool implements SCPool {
             for (Node node : otherSCPool.chunkLists.get(i % size)) { // todo traversal of SWMRList
                 Chunk chunk = node.getChunk();
                 if (chunk != null && node.getIdx() + 1 < chunkSize) {
-                    // atomically get chunk owner and stamp for further CAS
-                    int[] stampHolder = new int[1];
-                    int ownerValue = chunk.getOwner().get(stampHolder);
-                    if (ownerValue == otherSCPool.consumerId) {
-                        // the chunk belongs to the pool owner, we can try to steal it
-                        return new StolenNodeWrapper(node, ownerValue, stampHolder[0]);
+                    if (chunk.getOwner().getReference() == otherSCPool.consumerId) {
+                        // the chunk belongs to the pool owner,
+                        // we can try to steal it from this node
+                        return node;
                     }
                 }
             }
@@ -420,20 +418,6 @@ public class SalsaSCPool implements SCPool {
      */
     private static class OwnerContext {
         private Node currentNode = null;
-    }
-
-    private static class StolenNodeWrapper {
-        private final Node node;
-        private final int inspectedChunkOwner;
-        private final int inspectedChunkStamp;
-
-        private StolenNodeWrapper(Node node, int inspectedChunkOwner, int inspectedChunkStamp) {
-            if (node == null) throw new NullPointerException("Node has to be not null");
-
-            this.node = node;
-            this.inspectedChunkOwner = inspectedChunkOwner;
-            this.inspectedChunkStamp = inspectedChunkStamp;
-        }
     }
 
     /**
