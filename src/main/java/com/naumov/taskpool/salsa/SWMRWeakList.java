@@ -8,14 +8,14 @@ import java.util.function.Predicate;
  * Single-writer multi-reader linked list, used in {@link SalsaSCPool}'s {@code chunkLists} field.
  * todo add more details
  */
-public class SWMRList<E> implements List<E> {
+public class SWMRWeakList<E> implements List<E> {
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
 
     // two different objects for head and tail sentinels
     private final ListNode<E> head;
     private final ListNode<E> tail;
 
-    public SWMRList() {
+    public SWMRWeakList() {
         head = new ListNode<>(null);
         tail = new ListNode<>(null);
         head.next = tail;
@@ -188,7 +188,7 @@ public class SWMRList<E> implements List<E> {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
-        throw new UnsupportedOperationException(SWMRList.class.getSimpleName()
+        throw new UnsupportedOperationException(SWMRWeakList.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
     }
 

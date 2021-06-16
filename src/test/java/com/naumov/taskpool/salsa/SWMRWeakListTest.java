@@ -3,18 +3,17 @@ package com.naumov.taskpool.salsa;
 import org.junit.Test;
 
 import java.util.HashSet;
-import java.util.Iterator;
 import java.util.Set;
 
 import static org.junit.Assert.*;
 
 // simple sequential test
-public class SWMRListTest {
+public class SWMRWeakListTest {
 
     @Test
     public void seqTest0() {
         Set<Object> reference = new HashSet<>();
-        SWMRList<Object> list = new SWMRList<>();
+        SWMRWeakList<Object> list = new SWMRWeakList<>();
 
         Object node0 = new Object();
         Object node1 = new Object();
@@ -50,7 +49,7 @@ public class SWMRListTest {
 
     @Test
     public void seqRemoveTest() {
-        SWMRList<String> list = new SWMRList<>();
+        SWMRWeakList<String> list = new SWMRWeakList<>();
 
         String item0 = "aaaaaaa";
         String item1 = "aaaaaaa";
