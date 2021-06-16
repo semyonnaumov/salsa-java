@@ -20,7 +20,7 @@ public class SalsaSCPool implements SCPool {
     private final int nProducers;
 
     // shared state
-    private final CopyOnWriteArrayList<List<Node>> chunkLists; // shared among all actors
+    private final CopyOnWriteArrayList<SWMRList<Node>> chunkLists; // shared among all actors
     private final AtomicInteger emptyIndicator; // shared among all consumers
     private final Queue<Chunk> chunkPool; // M-S queue for spare chunks, shared among owner and producers
 
@@ -41,8 +41,8 @@ public class SalsaSCPool implements SCPool {
         this.chunkPool = new ConcurrentLinkedQueue<>();
     }
 
-    private CopyOnWriteArrayList<List<Node>> initChunkLists(int producersCount) {
-        final List<List<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
+    private CopyOnWriteArrayList<SWMRList<Node>> initChunkLists(int producersCount) {
+        final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
         for (int i = 0; i < producersCount; i++) {
             chunkListsTemplate.add(newNodeList());
         }
@@ -54,9 +54,9 @@ public class SalsaSCPool implements SCPool {
     }
 
     // todo decide which to use
-    private List<Node> newNodeList() {
-//        return new CopyOnWriteArrayList<>();
-        return new SWMRList<>();
+    private SWMRList<Node> newNodeList() {
+        return new SWMRStrongList<>();
+//        return new SWMRWeakList<>();
     }
 
     /**
@@ -140,16 +140,12 @@ public class SalsaSCPool implements SCPool {
 
         final Node node = new Node(newChunk);
         // add new node to producer's own chunk list
-        List<Node> chunkList = chunkLists.get(producerContext.producerId);
-        removeUsedNodes(chunkList);
-        chunkList.add(node);
+        SWMRList<Node> chunkList = chunkLists.get(producerContext.producerId);
+        chunkList.cleanup(aNode -> aNode.getChunk() == null); // lazy cleanup
+        chunkList.add(node); // <-- visible to consumers
         producerContext.chunk = newChunk;
         producerContext.prodIdx = 0;
         return true;
-    }
-
-    private void removeUsedNodes(List<Node> chunkList) {
-        // todo
     }
 
     @Override
@@ -164,8 +160,10 @@ public class SalsaSCPool implements SCPool {
         }
 
         // wasn't able to get a task from the currentNode (null/empty/stolen), traverse chunkLists
-        for (List<Node> chunkList : chunkLists) {
-            for (Node node : chunkList) { // todo traversing chunkList
+        for (SWMRList<Node> chunkList : chunkLists) {
+            SWMRListIterator<Node> it = chunkList.consistentIterator();
+            Node node = it.next();
+            while (node != null) {
                 Chunk chunk = node.getChunk();
                 if (chunk != null && chunk.getOwner().getReference() == consumerId) {
                     // found owned chunk
@@ -175,6 +173,8 @@ public class SalsaSCPool implements SCPool {
                         return ((SalsaTask) task).getTask();
                     }
                 }
+
+                node = it.next();
             }
         }
 
@@ -196,9 +196,6 @@ public class SalsaSCPool implements SCPool {
         Runnable task = getTaskAt(chunk, node.getIdx() + 1);
         if (task == null) return null; // no tasks in this chunk
 
-        // todo только эта проверка отсутствует в короткой статье! Вроде она и не нужна: до этих пор мы пока что никак не
-        //  обозначили свое намерение забрать задачу из этого блока, а смысл проверки теряется, т.к. сразу после
-        //  проверки текущий поток может заснуть, а другой поменяет владельца блока. Хотя в статье что-то есть на этот счет
         if (chunk.getOwner().getReference() != consumerId) return null; // chunk is stolen
 
         node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx + 1
@@ -248,7 +245,6 @@ public class SalsaSCPool implements SCPool {
         if (taskNextToCurrent == null) clearIndicator(); // pool could have become empty, tell others to check this
     }
 
-    // todo есть разница между новой и старой статьями!
     /**
      * Called by pool owner to steal a task (and a chunk, holding it) from another consumer.
      * Throws {@link IllegalArgumentException} when called with SCPool, other than {@link SalsaSCPool}.
@@ -281,8 +277,8 @@ public class SalsaSCPool implements SCPool {
         int prevIdx = prevNode.getIdx();
         if (prevIdx + 1 == chunkSize || getTaskAt(chunk, prevIdx + 1) == null) return null; // no tasks in the chunk
 
-        List<Node> myStealList = chunkLists.get(nProducers);
-        this.removeUsedNodes(myStealList);
+        SWMRList<Node> myStealList = chunkLists.get(nProducers);
+        myStealList.cleanup(aNode -> aNode.getChunk() == null); // lazy cleanup
         myStealList.add(prevNode); // make it stealable from my list
 
         if (!chunk.getOwner().compareAndSet(otherSalsaSCPool.consumerId, consumerId, stamp, stamp + 1)) {
@@ -312,9 +308,7 @@ public class SalsaSCPool implements SCPool {
         Node newNode = new Node(prevNode); // make snapshot copy
         newNode.setIdx(idx);
 
-        // todo нужно именно в то же место его воткнуть?
-        myStealList.remove(prevNode);
-        myStealList.add(newNode);
+        myStealList.replace(prevNode, newNode);
 
         prevNode.setChunk(null); // remove chunk from consumer's list
 
@@ -324,6 +318,10 @@ public class SalsaSCPool implements SCPool {
         if (SalsaTask.TAKEN.equals(task) || !chunk.getTasks().compareAndSet(idx, task, SalsaTask.TAKEN)) task = null;
 
         checkLast(newNode, next);
+
+        // todo add check routine here
+        //  проверять, что в стил-листе есть чанк с овнером == я, либо чанка нет. Недопустимо, когда в стил-листе
+        //  на этой точке исполнения есть чанк с другим овнером! (или допустимо, когда другой его уже спер???)
 
         if (chunk.getOwner().getReference() == consumerId) ownerContextThreadLocal.get().currentNode = newNode;
         return task != null ? ((SalsaTask) task).getTask() : null;
@@ -343,7 +341,9 @@ public class SalsaSCPool implements SCPool {
 
         // traverse all entries from a random start circularly to find not empty node
         for (int i = startIdx; i < size + startIdx; i++) {
-            for (Node node : otherSCPool.chunkLists.get(i % size)) { // todo traversal of SWMRList
+            SWMRListIterator<Node> it = otherSCPool.chunkLists.get(i % size).consistentIterator();
+            Node node = it.next();
+            while (node != null) {
                 Chunk chunk = node.getChunk();
                 if (chunk != null && node.getIdx() + 1 < chunkSize) {
                     if (chunk.getOwner().getReference() == otherSCPool.consumerId) {
@@ -352,6 +352,8 @@ public class SalsaSCPool implements SCPool {
                         return node;
                     }
                 }
+
+                node = it.next();
             }
         }
 
@@ -359,25 +361,27 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
-    @PermitAll
     public boolean isEmpty() {
-        for (List<Node> chunkList : chunkLists) {
-            for (Node node : chunkList) { // todo traversal of SWMRList
+        outer: for (SWMRList<Node> chunkList : chunkLists) {
+            SWMRListIterator<Node> it = chunkList.consistentIterator();
+            Node node = it.next();
+            while (node != null) {
                 Chunk chunk = node.getChunk();
-                if (chunk == null) continue;
+                if (chunk == null) continue outer;
                 int idx = node.getIdx();
                 for (int i = idx + 1; i < chunkSize; i++) {
                     Runnable task = chunk.getTasks().get(i);
                     // found non empty task
                     if (task != null && !SalsaTask.TAKEN.equals(task)) return false;
                 }
+
+                node = it.next();
             }
         }
         return true;
     }
 
     @Override
-    @PermitConsumers
     public void setIndicator(int consumerId) {
         int indicator;
         int upBit;
@@ -388,7 +392,6 @@ public class SalsaSCPool implements SCPool {
     }
 
     @Override
-    @PermitConsumers
     public boolean checkIndicator(int consumerId) {
         int indicator = emptyIndicator.get();
         return ((indicator >> consumerId) & 1) == 1;

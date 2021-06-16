@@ -62,7 +62,7 @@ public class SWMRStrongListTest {
         reference.add(node1);
         reference.add(node2);
 
-        SalsaIterator<Object> it = list.consistentIterator();
+        SWMRListIterator<Object> it = list.consistentIterator();
         int c0 = 0;
         Object nextItem0 = it.next();
         while (nextItem0 != null) {
@@ -126,7 +126,7 @@ public class SWMRStrongListTest {
 
         list.cleanup(i -> i.contains("a"));
 
-        SalsaIterator<String> it = list.consistentIterator();
+        SWMRListIterator<String> it = list.consistentIterator();
         String next = it.next();
         assertEquals(item3, next);
         assertNull(it.next());

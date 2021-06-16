@@ -1,6 +1,6 @@
 package com.naumov.taskpool.salsa;
 
-public interface SalsaIterator<E> {
+public interface SWMRListIterator<E> {
     /**
      * Gets the current next item in the list.
      * Always returns items, added before this method call event,

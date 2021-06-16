@@ -8,7 +8,7 @@ import java.util.function.Predicate;
  * Single-writer multi-reader linked list, used in {@link SalsaSCPool}'s {@code chunkLists} field.
  * todo add more details
  */
-public class SWMRWeakList<E> implements List<E> {
+public class SWMRWeakList<E> implements SWMRList<E> {
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
 
     // two different objects for head and tail sentinels
@@ -21,9 +21,9 @@ public class SWMRWeakList<E> implements List<E> {
         head.next = tail;
     }
 
-    public boolean add(E item) {
+    @Override
+    public void add(E item) {
         add(item, null, false);
-        return true;
     }
 
     public void addWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
@@ -62,19 +62,35 @@ public class SWMRWeakList<E> implements List<E> {
         current.next = listNode;
     }
 
-    public boolean remove(Object item) {
+    @Override
+    public boolean remove(E item) {
         return remove(item, null, false);
     }
 
-    public boolean removeWithMinorCleanup(Object item, Predicate<E> cleanupPredicate) {
+    @Override
+    public boolean replace(E item, E replacement) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public void cleanup(Predicate<E> cleanupPredicate) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
+    public SWMRListIterator<E> consistentIterator() {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    public boolean removeWithMinorCleanup(E item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, false);
     }
 
-    public boolean removeWithTotalCleanup(Object item, Predicate<E> cleanupPredicate) {
+    public boolean removeWithTotalCleanup(E item, Predicate<E> cleanupPredicate) {
         return remove(item, cleanupPredicate, true);
     }
 
-    public boolean remove(Object item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
+    public boolean remove(E item, Predicate<E> cleanupPredicate, boolean isTotalCleanup) {
         checkOwner();
         if (item == null) throw new NullPointerException("Null items are not allowed");
 
@@ -109,102 +125,12 @@ public class SWMRWeakList<E> implements List<E> {
         return false;
     }
 
-    @Override
-    public boolean containsAll(Collection<?> c) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean addAll(Collection<? extends E> c) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean addAll(int index, Collection<? extends E> c) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean removeAll(Collection<?> c) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean retainAll(Collection<?> c) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public void clear() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public E get(int index) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public E set(int index, E element) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public void add(int index, E element) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public E remove(int index) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public int indexOf(Object o) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public int lastIndexOf(Object o) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public ListIterator<E> listIterator() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public ListIterator<E> listIterator(int index) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public List<E> subList(int fromIndex, int toIndex) {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
     private void checkOwner() {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
         throw new UnsupportedOperationException(SWMRWeakList.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
-    }
-
-    @Override
-    public int size() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean isEmpty() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public boolean contains(Object o) {
-        throw new UnsupportedOperationException("Not implemented");
     }
 
     /**
@@ -214,16 +140,6 @@ public class SWMRWeakList<E> implements List<E> {
     @Override
     public Iterator<E> iterator() {
         return new SWMRIterator();
-    }
-
-    @Override
-    public Object[] toArray() {
-        throw new UnsupportedOperationException("Not implemented");
-    }
-
-    @Override
-    public <T> T[] toArray(T[] a) {
-        throw new UnsupportedOperationException("Not implemented");
     }
 
     private static class ListNode<E> {

@@ -22,8 +22,8 @@ public class NaiveTest {
 
 //        ExecutorService executorService = Executors.newWorkStealingPool(NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = Executors.newFixedThreadPool(NUMBER_OF_CONSUMERS);
-        ExecutorService executorService = MyExecutors.newSalsaThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
 //        ExecutorService executorService = MyExecutors.newMichealScottThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
+        ExecutorService executorService = MyExecutors.newSalsaThreadPool(NUMBER_OF_PRODUCERS, NUMBER_OF_CONSUMERS);
 
         // init producers
         List<Thread> producers = new ArrayList<>();

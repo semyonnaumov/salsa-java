@@ -5,7 +5,7 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
-public class SWMRStrongList<E> implements SalsaList<E> {
+public class SWMRStrongList<E> implements SWMRList<E> {
 
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
     private final ListNode head;
@@ -125,7 +125,7 @@ public class SWMRStrongList<E> implements SalsaList<E> {
     }
 
     @Override
-    public SalsaIterator<E> consistentIterator() {
+    public SWMRListIterator<E> consistentIterator() {
         return new StrongIterator();
     }
 
@@ -141,7 +141,7 @@ public class SWMRStrongList<E> implements SalsaList<E> {
     }
 
     // consistent iterator
-    private class StrongIterator implements SalsaIterator<E> {
+    private class StrongIterator implements SWMRListIterator<E> {
         private ListNode returnCandidate = head.next;
 
         @Override
