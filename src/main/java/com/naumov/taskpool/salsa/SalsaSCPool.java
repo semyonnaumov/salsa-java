@@ -362,12 +362,15 @@ public class SalsaSCPool implements SCPool {
 
     @Override
     public boolean isEmpty() {
-        outer: for (SWMRList<Node> chunkList : chunkLists) {
+        for (SWMRList<Node> chunkList : chunkLists) {
             SWMRListIterator<Node> it = chunkList.consistentIterator();
             Node node = it.next();
             while (node != null) {
                 Chunk chunk = node.getChunk();
-                if (chunk == null) continue outer;
+                if (chunk == null) {
+                    node = it.next();
+                    continue;
+                }
                 int idx = node.getIdx();
                 for (int i = idx + 1; i < chunkSize; i++) {
                     Runnable task = chunk.getTasks().get(i);
