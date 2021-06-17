@@ -335,8 +335,8 @@ public class SalsaSCPool implements SCPool {
 
         // traverse all entries from a random start circularly to find not empty node
         for (int i = startIdx; i < size + startIdx; i++) {
-            if (i % size == nProducers) return null; // todo: Temporary silver bullet. Find out why stealing from
-                                                     //  other consumer's steal-list messes the things up and delete this
+            if (i % size == nProducers) continue; // todo: Temporary silver bullet. Find out why stealing from
+                                                  //  other consumer's steal-list messes the things up and delete this
             SWMRListIterator<Node> it = otherSCPool.chunkLists.get(i % size).consistentIterator();
             Node node = it.next();
             while (node != null) {
