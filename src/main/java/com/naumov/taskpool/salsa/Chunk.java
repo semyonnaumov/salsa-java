@@ -22,32 +22,9 @@ public class Chunk {
             throw new IllegalArgumentException("Only byte values are allowed for owner field: [-128, 127].");
 
         this.chunkSize = chunkSize;
-        this.owner = new AtomicStampedReference<>(owner, Integer.MIN_VALUE);
+        this.owner = new AtomicStampedReference<>(owner, 0);
         this.tasks = new AtomicReferenceArray<>(chunkSize);
     }
-
-// todo no need for copying
-//
-//    /**
-//     * Copying constructor.
-//     * @param other chunk to copy
-//     */
-//    public Chunk(Chunk other) {
-//        if (other == null) throw new IllegalArgumentException(getClass().getSimpleName() +
-//                " copying constructor called with null argument");
-//
-//        chunkSize = other.chunkSize;
-//        int[] stampHolder = new int[1];
-//        Integer otherOwner = other.owner.get(stampHolder);
-//        owner = new AtomicStampedReference<>(otherOwner, stampHolder[0]);
-//
-//        Runnable[] copy = new Runnable[chunkSize];
-//        for (int i = 0; i < copy.length; i++) {
-//            copy[i] = other.tasks.get(i);
-//        }
-//
-//        tasks = new AtomicReferenceArray<>(copy);
-//    }
 
     public AtomicStampedReference<Integer> getOwner() {
         return owner;

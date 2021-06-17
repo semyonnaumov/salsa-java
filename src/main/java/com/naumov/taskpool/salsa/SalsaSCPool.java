@@ -317,10 +317,6 @@ public class SalsaSCPool implements SCPool {
 
         checkLast(newNode, next);
 
-        // todo add check routine here
-        //  проверять, что в стил-листе есть чанк с овнером == я, либо чанка нет. Недопустимо, когда в стил-листе
-        //  на этой точке исполнения есть чанк с другим овнером! (или допустимо, когда другой его уже спер???)
-
         if (chunk.getOwner().getReference() == consumerId) ownerContextThreadLocal.get().currentNode = newNode;
         return task != null ? ((SalsaTask) task).getTask() : null;
     }
@@ -339,6 +335,8 @@ public class SalsaSCPool implements SCPool {
 
         // traverse all entries from a random start circularly to find not empty node
         for (int i = startIdx; i < size + startIdx; i++) {
+            if (i % size == nProducers) return null; // todo: Temporary silver bullet. Find out why stealing from
+                                                     //  other consumer's steal-list messes the things up and delete this
             SWMRListIterator<Node> it = otherSCPool.chunkLists.get(i % size).consistentIterator();
             Node node = it.next();
             while (node != null) {
