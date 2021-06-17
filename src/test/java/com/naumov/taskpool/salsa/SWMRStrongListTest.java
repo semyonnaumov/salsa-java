@@ -25,6 +25,10 @@ public class SWMRStrongListTest {
         reference.add(node1);
         reference.add(node2);
 
+        assertTrue(list.contains(node0));
+        assertTrue(list.contains(node1));
+        assertTrue(list.contains(node2));
+
         int c0 = 0;
         for (Object o : list) {
             assertTrue(reference.remove(o));
@@ -35,8 +39,11 @@ public class SWMRStrongListTest {
         assertEquals(c0, 3);
 
         list.remove(node0);
+        assertFalse(list.contains(node0));
         list.remove(node1);
+        assertFalse(list.contains(node1));
         list.remove(node2);
+        assertFalse(list.contains(node2));
 
         int c1 = 0;
         for (Object o : list) {
@@ -62,11 +69,16 @@ public class SWMRStrongListTest {
         reference.add(node1);
         reference.add(node2);
 
+        assertTrue(list.contains(node0));
+        assertTrue(list.contains(node1));
+        assertTrue(list.contains(node2));
+
         SWMRListIterator<Object> it = list.consistentIterator();
         int c0 = 0;
         Object nextItem0 = it.next();
         while (nextItem0 != null) {
             assertTrue(reference.remove(nextItem0));
+            assertTrue(list.contains(nextItem0));
             c0++;
             nextItem0 = it.next();
         }
@@ -75,8 +87,11 @@ public class SWMRStrongListTest {
         assertEquals(c0, 3);
 
         list.remove(node0);
+        assertFalse(list.contains(node0));
         list.remove(node1);
+        assertFalse(list.contains(node1));
         list.remove(node2);
+        assertFalse(list.contains(node2));
 
         int c1 = 0;
         Object nextItem1 = it.next();
@@ -106,6 +121,10 @@ public class SWMRStrongListTest {
         assertFalse(list.remove(item1));
         assertTrue(list.remove(item2));
         assertFalse(list.remove(item2));
+
+        assertFalse(list.contains(item0));
+        assertFalse(list.contains(item1));
+        assertFalse(list.contains(item2));
     }
 
     @Test
@@ -130,5 +149,11 @@ public class SWMRStrongListTest {
         String next = it.next();
         assertEquals(item3, next);
         assertNull(it.next());
+
+        assertFalse(list.contains(item0));
+        assertFalse(list.contains(item1));
+        assertFalse(list.contains(item2));
+        assertTrue(list.contains(item3));
+        assertFalse(list.contains(item4));
     }
 }

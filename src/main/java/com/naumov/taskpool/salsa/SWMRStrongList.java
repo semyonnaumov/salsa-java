@@ -111,6 +111,24 @@ public class SWMRStrongList<E> implements SWMRList<E> {
         }
     }
 
+    @Override
+    public boolean contains(E item) {
+        if (item == null) return false;
+
+        // find node containing the item
+        ListNode current = head.next;
+        while (current != tail) {
+            if (!current.deleted && current.item.equals(item)) {
+                // found not deleted node with the item
+                return true;
+            }
+            current = current.next;
+        }
+
+        // node with the item not found
+        return false;
+    }
+
     private void checkOwner() {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;

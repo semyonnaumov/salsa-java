@@ -1,7 +1,6 @@
 package com.naumov.taskpool.salsa;
 
 import com.naumov.taskpool.SCPool;
-import com.naumov.taskpool.salsa.annot.*;
 
 import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
@@ -253,7 +252,6 @@ public class SalsaSCPool implements SCPool {
      * @return stolen task or {@code null}
      */
     @Override
-    @PermitOwner
     public Runnable steal(SCPool otherSCPool) {
         SalsaSCPool otherSalsaSCPool;
         try {
@@ -271,7 +269,7 @@ public class SalsaSCPool implements SCPool {
 
         Chunk chunk = prevNode.getChunk();
         if (chunk == null) return null;
-        int stamp = chunk.getOwner().getStamp(); // before reading prevIdx remember the stamp to detect possible
+        int stamp = chunk.getOwner().getStamp(); // before reading prevIdx, remember the stamp to detect possible
                                                  // ABA later by CAS (if stamp has changed, prevIdx is obsolete)
 
         int prevIdx = prevNode.getIdx();

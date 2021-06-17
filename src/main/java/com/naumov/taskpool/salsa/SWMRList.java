@@ -32,6 +32,13 @@ public interface SWMRList<E> extends Iterable<E> {
     void cleanup(Predicate<E> cleanupPredicate);
 
     /**
+     * Looks for the item in the list.
+     * @param item item to detect
+     * @return {@code true} if found
+     */
+    boolean contains(E item);
+
+    /**
      * Linearizable iterator.
      * @return an iterator
      */

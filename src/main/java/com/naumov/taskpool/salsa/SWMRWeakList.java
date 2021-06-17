@@ -78,6 +78,11 @@ public class SWMRWeakList<E> implements SWMRList<E> {
     }
 
     @Override
+    public boolean contains(E item) {
+        throw new UnsupportedOperationException("Not implemented");
+    }
+
+    @Override
     public SWMRListIterator<E> consistentIterator() {
         throw new UnsupportedOperationException("Not implemented");
     }
