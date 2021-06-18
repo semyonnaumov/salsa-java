@@ -5,13 +5,13 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
-public class SWMRStrongList<E> implements SWMRList<E> {
+public class SWMRListImpl<E> implements SWMRList<E> {
 
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
     private final ListNode head;
     private final ListNode tail;
 
-    public SWMRStrongList() {
+    public SWMRListImpl() {
         head = new ListNode(null);
         tail = new ListNode(null);
         head.next = tail;
@@ -133,7 +133,7 @@ public class SWMRStrongList<E> implements SWMRList<E> {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
-        throw new UnsupportedOperationException(SWMRWeakList.class.getSimpleName()
+        throw new UnsupportedOperationException(SWMRListImpl.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
     }
 

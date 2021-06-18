@@ -7,12 +7,12 @@ import java.util.Set;
 
 import static org.junit.Assert.*;
 
-public class SWMRStrongListTest {
+public class SWMRListImplTest {
 
     @Test
     public void seqTestWithForeach() {
         Set<Object> reference = new HashSet<>();
-        SWMRStrongList<Object> list = new SWMRStrongList<>();
+        SWMRListImpl<Object> list = new SWMRListImpl<>();
 
         Object node0 = new Object();
         Object node1 = new Object();
@@ -56,7 +56,7 @@ public class SWMRStrongListTest {
     @Test
     public void seqTestWithSalsaIterator() {
         Set<Object> reference = new HashSet<>();
-        SWMRStrongList<Object> list = new SWMRStrongList<>();
+        SWMRListImpl<Object> list = new SWMRListImpl<>();
 
         Object node0 = new Object();
         Object node1 = new Object();
@@ -105,7 +105,7 @@ public class SWMRStrongListTest {
 
     @Test
     public void seqRemoveTest() {
-        SWMRStrongList<String> list = new SWMRStrongList<>();
+        SWMRListImpl<String> list = new SWMRListImpl<>();
 
         String item0 = "aaaaaaa";
         String item1 = "aaaaaaa";
@@ -129,7 +129,7 @@ public class SWMRStrongListTest {
 
     @Test
     public void seqCleanupTest() {
-        SWMRStrongList<String> list = new SWMRStrongList<>();
+        SWMRListImpl<String> list = new SWMRListImpl<>();
 
         String item0 = "aaaaaaa";
         String item1 = "aaaaaaa";

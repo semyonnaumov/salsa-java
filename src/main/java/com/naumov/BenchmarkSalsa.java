@@ -94,8 +94,8 @@ public class BenchmarkSalsa {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(BenchmarkSalsa.class.getSimpleName())
-                .warmupTime(TimeValue.seconds(1))
-                .measurementTime(TimeValue.seconds(1))
+                .warmupTime(TimeValue.seconds(3))
+                .measurementTime(TimeValue.seconds(3))
                 .threads(nProducers)
                 .syncIterations(true)
                 .forks(1)

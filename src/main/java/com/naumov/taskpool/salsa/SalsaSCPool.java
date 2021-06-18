@@ -2,7 +2,6 @@ package com.naumov.taskpool.salsa;
 
 import com.naumov.taskpool.SCPool;
 
-import java.lang.invoke.VarHandle;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Queue;
@@ -43,19 +42,13 @@ public class SalsaSCPool implements SCPool {
     private CopyOnWriteArrayList<SWMRList<Node>> initChunkLists(int producersCount) {
         final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
         for (int i = 0; i < producersCount; i++) {
-            chunkListsTemplate.add(newNodeList());
+            chunkListsTemplate.add(new SWMRListImpl<>());
         }
 
         // add steal list
-        chunkListsTemplate.add(newNodeList());
+        chunkListsTemplate.add(new SWMRListImpl<>());
 
         return new CopyOnWriteArrayList<>(chunkListsTemplate);
-    }
-
-    // todo decide which to use
-    private SWMRList<Node> newNodeList() {
-        return new SWMRStrongList<>();
-//        return new SWMRWeakList<>();
     }
 
     /**
@@ -199,9 +192,6 @@ public class SalsaSCPool implements SCPool {
 
         node.setIdx(node.getIdx() + 1); // tell the world you're going to take a task from idx + 1
                                         // atomicity is not needed since only the owner of the SCPool can update idx
-
-        // todo needed?
-        VarHandle.fullFence();
 
         if (chunk.getOwner().getReference() == consumerId) {
             // common case
