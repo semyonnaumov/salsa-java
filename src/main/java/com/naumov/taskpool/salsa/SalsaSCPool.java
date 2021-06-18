@@ -34,21 +34,13 @@ public class SalsaSCPool implements SCPool {
         this.chunkSize = chunkSize;
         this.nProducers = nProducers;
 
-        this.chunkLists = initChunkLists(nProducers);
+        final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(nProducers + 1);
+        for (int i = 0; i < nProducers; i++) chunkListsTemplate.add(new SWMRListImpl<>());
+        chunkListsTemplate.add(new SWMRListImpl<>()); // add steal list
+
+        this.chunkLists =  new CopyOnWriteArrayList<>(chunkListsTemplate);
         this.emptyIndicator = new AtomicInteger(0); // all bits are unset
         this.chunkPool = new ConcurrentLinkedQueue<>();
-    }
-
-    private CopyOnWriteArrayList<SWMRList<Node>> initChunkLists(int producersCount) {
-        final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(producersCount + 1);
-        for (int i = 0; i < producersCount; i++) {
-            chunkListsTemplate.add(new SWMRListImpl<>());
-        }
-
-        // add steal list
-        chunkListsTemplate.add(new SWMRListImpl<>());
-
-        return new CopyOnWriteArrayList<>(chunkListsTemplate);
     }
 
     /**
