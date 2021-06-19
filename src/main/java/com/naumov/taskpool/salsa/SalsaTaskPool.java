@@ -6,13 +6,13 @@ import com.naumov.taskpool.SCPool;
 
 public class SalsaTaskPool extends AbstractTaskPool {
 
-    public SalsaTaskPool(int nProducers, int nConsumers, int chunkSize) {
-        super(nProducers, nConsumers, chunkSize);
+    public SalsaTaskPool(int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
+        super(nProducers, nConsumers, chunkSize, cleanupCycles);
     }
 
     @Override
-    protected SCPool newSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers) {
-        return new SalsaSCPool(consumerId, chunkSize, nProducers, nConsumers);
+    protected SCPool newSCPool(int consumerId, int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
+        return new SalsaSCPool(consumerId, nProducers, nConsumers, chunkSize, cleanupCycles);
     }
 
     @Override

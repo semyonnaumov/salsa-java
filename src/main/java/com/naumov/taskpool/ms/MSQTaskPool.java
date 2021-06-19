@@ -5,12 +5,12 @@ import com.naumov.taskpool.SCPool;
 
 public class MSQTaskPool extends AbstractTaskPool {
 
-    public MSQTaskPool(int nProducers, int nConsumers, int chunkSize) {
-        super(nProducers, nConsumers, chunkSize);
+    public MSQTaskPool(int nProducers, int nConsumers) {
+        super(nProducers, nConsumers, 0, 0);
     }
 
     @Override
-    protected SCPool newSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers) {
+    protected SCPool newSCPool(int consumerId, int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
         return new MSQSCPool(nConsumers);
     }
 

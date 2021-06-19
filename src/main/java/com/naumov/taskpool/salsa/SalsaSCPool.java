@@ -26,7 +26,7 @@ public class SalsaSCPool implements SCPool {
     private final ThreadLocal<ProducerContext> pContextThreadLocal = ThreadLocal.withInitial(() -> null);
     private final ThreadLocal<OwnerContext> ownerContextThreadLocal = ThreadLocal.withInitial(() -> null);
 
-    public SalsaSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers) {
+    public SalsaSCPool(int consumerId, int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
         if (consumerId < 0 || consumerId > 31) throw new IllegalArgumentException("Available consumer ids are [0, 31]");
         if (nConsumers > 32) throw new IllegalArgumentException("Maximum number of consumers is 32");
 
@@ -35,8 +35,8 @@ public class SalsaSCPool implements SCPool {
         this.nProducers = nProducers;
 
         final List<SWMRList<Node>> chunkListsTemplate = new ArrayList<>(nProducers + 1);
-        for (int i = 0; i < nProducers; i++) chunkListsTemplate.add(new SWMRListImpl<>());
-        chunkListsTemplate.add(new SWMRListImpl<>()); // add steal list
+        for (int i = 0; i < nProducers; i++) chunkListsTemplate.add(new SWMRListImpl<>(cleanupCycles));
+        chunkListsTemplate.add(new SWMRListImpl<>(cleanupCycles)); // add steal list
 
         this.chunkLists =  new CopyOnWriteArrayList<>(chunkListsTemplate);
         this.emptyIndicator = new AtomicInteger(0); // all bits are unset

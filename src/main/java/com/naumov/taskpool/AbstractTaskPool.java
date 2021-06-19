@@ -27,7 +27,7 @@ public abstract class AbstractTaskPool implements TaskPool {
     private final ThreadLocal<List<SCPool>> cAccessListThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's access list
     private final ThreadLocal<SCPool> cSCPoolThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's SCPool
 
-    public AbstractTaskPool(int nProducers, int nConsumers, int chunkSize) {
+    public AbstractTaskPool(int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
         if (nProducers < 1 || nProducers > MAX_N_PRODUCERS) {
             throw new IllegalArgumentException("nProducers cannot be less than 1 and greater than " + MAX_N_PRODUCERS
                     + ", got " + nProducers);
@@ -43,7 +43,7 @@ public abstract class AbstractTaskPool implements TaskPool {
 
         final List<SCPool> allSCPools = new ArrayList<>(nConsumers);
         for (int cId = 0; cId < nConsumers; cId++) {
-            final SCPool scPool = newSCPool(cId, chunkSize, nProducers, nConsumers);
+            final SCPool scPool = newSCPool(cId, nProducers, nConsumers, chunkSize, cleanupCycles);
             allSCPools.add(scPool); // create sc pools, but not bind to consumers yet
         }
 
@@ -53,12 +53,13 @@ public abstract class AbstractTaskPool implements TaskPool {
     /**
      * Successors of this class must implement this method to provide used {@code SCPool} implementations.
      * @param consumerId id of the owner of a created pool
-     * @param chunkSize size of chunks in this pool
      * @param nProducers max number of producers this SCPool allows
      * @param nConsumers max number of consumer this SCPool allows
+     * @param chunkSize chunk size
+     * @param cleanupCycles max number of deleted nodes during cleanup phase
      * @return newly created SCPool successor
      */
-    protected abstract SCPool newSCPool(int consumerId, int chunkSize, int nProducers, int nConsumers);
+    protected abstract SCPool newSCPool(int consumerId, int nProducers, int nConsumers, int chunkSize, int cleanupCycles);
 
     @Override
     public void put(Runnable task) {
@@ -102,7 +103,7 @@ public abstract class AbstractTaskPool implements TaskPool {
             }
 
             // no tasks found - validate emptiness
-            if (isEmpty()) return null;
+//            if (isEmpty()) return null; // todo unused when consumers always retry to take a task
         }
 
         return null;

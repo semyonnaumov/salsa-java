@@ -10,12 +10,22 @@ public class SWMRListImpl<E> implements SWMRList<E> {
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
     private final ListNode head;
     private final ListNode tail;
+    private final int cleanupCycles;
 
     public SWMRListImpl() {
         head = new ListNode(null);
         tail = new ListNode(null);
         head.next = tail;
         tail.prev = head;
+        this.cleanupCycles = Integer.MAX_VALUE; // total cleanup when unspecified
+    }
+
+    public SWMRListImpl(int cleanupCycles) {
+        head = new ListNode(null);
+        tail = new ListNode(null);
+        head.next = tail;
+        tail.prev = head;
+        this.cleanupCycles = cleanupCycles;
     }
 
     // inserts items in the end of the list (before the tail) in O(1)
@@ -93,10 +103,12 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         checkOwner();
 
         ListNode beforeDeleted = head;
-        while (beforeDeleted.next != tail) {
+        int deletedCount = 0;
+        while (beforeDeleted.next != tail && deletedCount < this.cleanupCycles) {
             if (beforeDeleted.next.deleted || cleanupPredicate.test(beforeDeleted.next.item)) {
                 // found node to delete
                 beforeDeleted.next.deleted = true; // <-- commit 1
+                deletedCount++;
                 if (beforeDeleted.next.next != tail) {
                     // not last node - remove physically
                     beforeDeleted.next.prev = null; // unlink deleted node backwards

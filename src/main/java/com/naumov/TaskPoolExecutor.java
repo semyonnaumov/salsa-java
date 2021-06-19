@@ -12,13 +12,13 @@ public class TaskPoolExecutor extends AbstractExecutorService {
     private final TaskPool taskPool;
     private final List<Worker> consumers;
 
-    public TaskPoolExecutor(TaskPool taskPool, int nConsumers) {
+    public TaskPoolExecutor(TaskPool taskPool, int nConsumers, int backoffStartTimeout) {
         this.taskPool = taskPool;
 
         // init consumers
         List<Worker> workers = new ArrayList<>();
         for (int i = 0; i < nConsumers; i++) {
-            Worker consumer = new Worker(i);
+            Worker consumer = new Worker(i, backoffStartTimeout);
             workers.add(consumer);
         }
         consumers = Collections.unmodifiableList(workers);
@@ -31,24 +31,35 @@ public class TaskPoolExecutor extends AbstractExecutorService {
      * Consumer thread
      */
     class Worker extends Thread {
+        private final int backoffStartTimeout;
 
-        public Worker(int id) {
+        public Worker(int id, int backoffStartTimeout) {
             super("TaskPool-consumer-" + id);
+            this.backoffStartTimeout = backoffStartTimeout;
         }
 
         @Override
         public void run() {
-            ThreadUtil.logMajorAction("started");
-            while (!this.isInterrupted()) {
-                Runnable task = taskPool.get();
+            if (backoffStartTimeout > 0) {
+                // backoffed run
+                Backoff backoff = new Backoff(backoffStartTimeout, backoffStartTimeout * 3, backoffStartTimeout * 2000);
 
-                if (task != null) {
-                    ThreadUtil.logAction("extracted task: " + task);
-                    task.run(); // todo introduce exponential backoff here? (when pool is empty)
+                while (!this.isInterrupted()) {
+                    Runnable task = taskPool.get();
+                    if (task != null) {
+                        backoff.flush();
+                        task.run();
+                    } else {
+                        backoff.backoff();
+                    }
+                }
+            } else {
+                // without backoff
+                while (!this.isInterrupted()) {
+                    Runnable task = taskPool.get();
+                    if (task != null) task.run();
                 }
             }
-
-            ThreadUtil.logMajorAction("interrupted");
         }
     }
 
@@ -88,5 +99,40 @@ public class TaskPoolExecutor extends AbstractExecutorService {
     public boolean awaitTermination(long timeout, TimeUnit unit) throws InterruptedException {
         // TBD
         return false;
+    }
+
+    private static class Backoff {
+        private static final int SMALL_PRIME = 7;
+        private final int minStartBackoffNs;
+        private final int maxStartBackoffNs;
+        private final int maxBackoffNs;
+        private int currentBackoffNs; // backoff value
+        private int i; // backoff exponent
+
+        private Backoff(int minStartBackoffNs, int maxStartBackoffNs, int maxBackoffNs) {
+            this.minStartBackoffNs = minStartBackoffNs;
+            this.maxStartBackoffNs = maxStartBackoffNs;
+            this.maxBackoffNs = maxBackoffNs;
+            currentBackoffNs = minStartBackoffNs + ThreadLocalRandom.current().nextInt(maxStartBackoffNs);
+            i = 1;
+        }
+
+        private void backoff() {
+            if (currentBackoffNs < maxBackoffNs) {
+                currentBackoffNs = Math.min((int) Math.pow(SMALL_PRIME + currentBackoffNs, i), maxBackoffNs);
+            }
+
+            long startTime = System.nanoTime();
+            long elapsedNanos = System.nanoTime() - startTime;
+            // busy wait on backoff
+            while (elapsedNanos < currentBackoffNs && !Thread.currentThread().isInterrupted()) {
+                elapsedNanos = System.nanoTime() - startTime;
+            }
+        }
+
+        private void flush() {
+            currentBackoffNs = ThreadLocalRandom.current().nextInt(minStartBackoffNs, maxStartBackoffNs);
+            i = 1;
+        }
     }
 }

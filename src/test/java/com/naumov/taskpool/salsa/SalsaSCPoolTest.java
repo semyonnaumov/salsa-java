@@ -10,7 +10,7 @@ public class SalsaSCPoolTest {
     private SalsaSCPool zeroOwnerPool;
 
     private SalsaSCPool unpopulatedPool(int ownerId) {
-        return new SalsaSCPool(ownerId, 1000, 10, 10);
+        return new SalsaSCPool(ownerId, 10, 10, 1000, Integer.MAX_VALUE);
     }
 
     @Before

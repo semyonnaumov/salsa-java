@@ -9,25 +9,36 @@ import org.openjdk.jmh.runner.options.TimeValue;
 
 import java.util.concurrent.*;
 
-// $ java -jar target/benchmarks.jar BenchmarkSalsa -w 10s -r 10s -f 1 -si true
+// $ java -jar target/benchmarks.jar BenchmarkSalsa -w 15s -wi 5 -r 15s -i 10 -t 1 -si true -f 1
 // -w = warmup time
-// -r = run (measurement) time
-// -f = JVM forks
+// -wi = warmup iterations
+// -r = measurement time
+// -i = measurement iterations
 // -t = threads
 // -si = synchronize iterations
+// -f = JVM forks
 @OutputTimeUnit(TimeUnit.MILLISECONDS)
 public class BenchmarkSalsa {
 
-    private static final int nProducers = 2;
+    // only for runs from IDE
+    private static final int nProducers = 1;
 
     @State(Scope.Benchmark)
     public static class ExecutorWrapper {
+        @Param({"SALSA"})
+        public String type;
+
         @Param({"1", "2", "4", "6", "8"})
         public int nConsumers;
 
-        @Param({"SALSA", "MSQ", "FJP", "TPE"})
-//        @Param({"SALSA"})
-        public String type;
+        @Param({"100", "500000"})
+        public int chunkSize;
+
+        @Param({"1", "2147483647"})
+        public int cleanupCycles;
+
+        @Param({"0", "5", "50"})
+        public int backoffStartTimeout;
 
         ExecutorService service;
 
@@ -35,7 +46,7 @@ public class BenchmarkSalsa {
         public void up() {
             switch (type) {
                 case "SALSA":
-                    service = MyExecutors.newSalsaThreadPool(nProducers, nConsumers);
+                    service = MyExecutors.newSalsaThreadPool(nProducers, nConsumers, chunkSize, cleanupCycles, backoffStartTimeout);
                     break;
                 case "MSQ":
                     service = MyExecutors.newMichealScottThreadPool(nProducers, nConsumers);
@@ -55,11 +66,11 @@ public class BenchmarkSalsa {
         }
     }
 
-    @Benchmark
-    @BenchmarkMode(Mode.Throughput) // submission throughput
-    public Future<Double> submit(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
-        return e.service.submit(new Task(s));
-    }
+//    @Benchmark
+//    @BenchmarkMode(Mode.Throughput) // submission throughput
+//    public Future<Double> submit(ExecutorWrapper e, final Scratch s) throws InterruptedException {
+//        return e.service.submit(new Task(s));
+//    }
 
     @Benchmark
     @BenchmarkMode(Mode.Throughput) // throughput
@@ -69,9 +80,8 @@ public class BenchmarkSalsa {
 
     @State(Scope.Thread) // other benchmark threads can't see this object (although consumers threads can)
     public static class Scratch {
-        private double p;
-
         public double doWork() {
+            double p = ThreadLocalRandom.current().nextDouble(1.21232342, 13257687.3234234);
             p = Math.log(p);
             return p;
         }
@@ -94,8 +104,10 @@ public class BenchmarkSalsa {
     public static void main(String[] args) throws RunnerException {
         Options opt = new OptionsBuilder()
                 .include(BenchmarkSalsa.class.getSimpleName())
-                .warmupTime(TimeValue.seconds(3))
-                .measurementTime(TimeValue.seconds(3))
+                .warmupIterations(5)
+                .measurementIterations(10)
+                .warmupTime(TimeValue.seconds(15))
+                .measurementTime(TimeValue.seconds(15))
                 .threads(nProducers)
                 .syncIterations(true)
                 .forks(1)
