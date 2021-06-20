@@ -1,0 +1,11 @@
+nProducers	nConsumers	type	Score	Error	Units
+6	1	FJP	538,702	1,763	ops/ms
+6	1	TPE	545,180	5,060	ops/ms
+6	2	FJP	468,296	5,319	ops/ms
+6	2	TPE	508,605	8,172	ops/ms
+6	4	FJP	403,806	2,482	ops/ms
+6	4	TPE	446,442	2,611	ops/ms
+6	6	FJP	425,250	2,426	ops/ms
+6	6	TPE	431,213	2,409	ops/ms
+6	8	FJP	455,621	9,728	ops/ms
+6	8	TPE	431,562	3,217	ops/ms
