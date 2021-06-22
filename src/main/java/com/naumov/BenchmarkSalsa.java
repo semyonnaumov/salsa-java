@@ -9,7 +9,7 @@ import org.openjdk.jmh.runner.options.TimeValue;
 
 import java.util.concurrent.*;
 
-// $ java -jar target/benchmarks.jar BenchmarkSalsa -w 15s -wi 5 -r 15s -i 10 -t 1 -si true -f 1
+// $ java -jar target/benchmarks.jar BenchmarkSalsa -w 15s -wi 5 -r 15s -i 10 -t 8 -si true -f 1
 // -w = warmup time
 // -wi = warmup iterations
 // -r = measurement time
@@ -21,24 +21,15 @@ import java.util.concurrent.*;
 public class BenchmarkSalsa {
 
     // only for runs from IDE
-    private static final int nProducers = 1;
+    private static final int nProducers = 8;
 
     @State(Scope.Benchmark)
     public static class ExecutorWrapper {
-        @Param({"SALSA"})
+        @Param({"SALSA", "FJP", "TPE"})
         public String type;
 
         @Param({"1", "2", "4", "6", "8"})
         public int nConsumers;
-
-        @Param({"100", "500000"})
-        public int chunkSize;
-
-        @Param({"1", "2147483647"})
-        public int cleanupCycles;
-
-        @Param({"0", "5", "50"})
-        public int backoffStartTimeout;
 
         ExecutorService service;
 
@@ -46,7 +37,7 @@ public class BenchmarkSalsa {
         public void up() {
             switch (type) {
                 case "SALSA":
-                    service = MyExecutors.newSalsaThreadPool(nProducers, nConsumers, chunkSize, cleanupCycles, backoffStartTimeout);
+                    service = MyExecutors.newSalsaThreadPool(nProducers, nConsumers, 100, 1, 0);
                     break;
                 case "MSQ":
                     service = MyExecutors.newMichealScottThreadPool(nProducers, nConsumers);
