@@ -9,34 +9,32 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public abstract class AbstractTaskPool implements TaskPool {
     private static final int MAX_N_PRODUCERS = 32768;
-    private static final int MAX_N_CONSUMERS = 32; // can be increased, currently limited due to the emptyIndicator implementation
+    private static final int MAX_N_CONSUMERS = 32; // limited due to the emptyIndicator implementation
 
     // unmodifiable shared pool state
     private final int nProducers;
     private final int nConsumers;
     private final CopyOnWriteArrayList<SCPool> allSCPools;
 
-    // shared pool state
-    private final AtomicInteger pCount = new AtomicInteger(0); // registered producers count, for issuing id
-    private final AtomicInteger cCount = new AtomicInteger(0); // registered consumers count, for issuing id
+    // shared pool state: depicts last issued ids
+    private final AtomicInteger pCount = new AtomicInteger(0);
+    private final AtomicInteger cCount = new AtomicInteger(0);
 
     // ThreadLocals
-    private final ThreadLocal<Integer> pIdThreadLocal = ThreadLocal.withInitial(() -> -1); // producer's id in the pool: [0 .. nProducers)
-    private final ThreadLocal<Integer> cIdThreadLocal = ThreadLocal.withInitial(() -> -1); // consumer's id in the pool: [0 .. nConsumers)
-    private final ThreadLocal<List<SCPool>> pAccessListThreadLocal = ThreadLocal.withInitial(() -> null); // producer's access list
-    private final ThreadLocal<List<SCPool>> cAccessListThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's access list
-    private final ThreadLocal<SCPool> cSCPoolThreadLocal = ThreadLocal.withInitial(() -> null); // consumer's SCPool
+    private final ThreadLocal<Integer> pIdTL = ThreadLocal.withInitial(() -> -1); // producer id, [0 .. nProducers)
+    private final ThreadLocal<Integer> cIdTL = ThreadLocal.withInitial(() -> -1); // consumer id, [0 .. nConsumers)
+    private final ThreadLocal<List<SCPool>> pAccessListTL = ThreadLocal.withInitial(() -> null);
+    private final ThreadLocal<List<SCPool>> cAccessListTL = ThreadLocal.withInitial(() -> null);
+    private final ThreadLocal<SCPool> cSCPoolTL = ThreadLocal.withInitial(() -> null); // consumer's own SCPool
 
     public AbstractTaskPool(int nProducers, int nConsumers, int chunkSize, int cleanupCycles) {
-        if (nProducers < 1 || nProducers > MAX_N_PRODUCERS) {
+        if (nProducers < 1 || nProducers > MAX_N_PRODUCERS)
             throw new IllegalArgumentException("nProducers cannot be less than 1 and greater than " + MAX_N_PRODUCERS
                     + ", got " + nProducers);
-        }
 
-        if (nConsumers < 1 || nConsumers > MAX_N_CONSUMERS) {
+        if (nConsumers < 1 || nConsumers > MAX_N_CONSUMERS)
             throw new IllegalArgumentException("nConsumers cannot be less than 1 and greater than " + MAX_N_CONSUMERS
                     + ", got " + nConsumers);
-        }
 
         this.nProducers = nProducers;
         this.nConsumers = nConsumers;
@@ -51,21 +49,30 @@ public abstract class AbstractTaskPool implements TaskPool {
     }
 
     /**
-     * Successors of this class must implement this method to provide used {@code SCPool} implementations.
-     * @param consumerId id of the owner of a created pool
-     * @param nProducers max number of producers this SCPool allows
-     * @param nConsumers max number of consumer this SCPool allows
-     * @param chunkSize chunk size
+     * Successors of this class must implement this method to provide with used {@code SCPool} implementation.
+     *
+     * @param consumerId    id of the owner of a created pool
+     * @param nProducers    max number of producers this SCPool allows
+     * @param nConsumers    max number of consumer this SCPool allows
+     * @param chunkSize     chunk size
      * @param cleanupCycles max number of deleted nodes during cleanup phase
      * @return newly created SCPool successor
      */
-    protected abstract SCPool newSCPool(int consumerId, int nProducers, int nConsumers, int chunkSize, int cleanupCycles);
+    protected abstract SCPool newSCPool(int consumerId,
+                                        int nProducers,
+                                        int nConsumers,
+                                        int chunkSize,
+                                        int cleanupCycles);
+
+    protected abstract void regCurrentThreadAsProducer(SCPool scPool, int producerId);
+
+    protected abstract void regCurrentThreadAsOwner(SCPool scPool, int consumerId);
 
     @Override
     public void put(Runnable task) {
         checkThreadRegistered(true);
 
-        List<SCPool> accessList = pAccessListThreadLocal.get();
+        List<SCPool> accessList = pAccessListTL.get();
         int accessListSize = accessList.size();
         int startIdx = ThreadLocalRandom.current().nextInt(accessListSize); // [0, accessListSize)
 
@@ -84,14 +91,14 @@ public abstract class AbstractTaskPool implements TaskPool {
     public Runnable get() {
         checkThreadRegistered(false);
 
-        SCPool myPool = cSCPoolThreadLocal.get();
+        SCPool myPool = cSCPoolTL.get();
         while (!Thread.currentThread().isInterrupted()) {
             // first try to get a task from the local pool
             Runnable task = myPool.consume();
             if (task != null) return task;
 
             // failed to get a task from the local pool - steal
-            List<SCPool> accessList = cAccessListThreadLocal.get();
+            List<SCPool> accessList = cAccessListTL.get();
             int accessListSize = accessList.size();
             if (accessListSize > 0) {
                 int startIdx = ThreadLocalRandom.current().nextInt(accessListSize); // [0, accessListSize)
@@ -115,54 +122,52 @@ public abstract class AbstractTaskPool implements TaskPool {
 
         for (int i = 0; i < nConsumers; i++) {
             for (SCPool scPool : allSCPools) {
-                if (i == 0) scPool.setIndicator(cIdThreadLocal.get());
+                if (i == 0) scPool.setIndicator(cIdTL.get());
                 if (!scPool.isEmpty()) return false;
-                if (!scPool.checkIndicator(cIdThreadLocal.get())) return false;
+                if (!scPool.checkIndicator(cIdTL.get())) return false;
             }
         }
         return true;
     }
 
-    protected abstract void registerCurrentThreadAsProducer(SCPool scPool, int producerId);
-    protected abstract void registerCurrentThreadAsOwner(SCPool scPool, int consumerId);
-
     /**
      * Checks whether a calling thread (producer/consumer) is registered in the task pool and register it if necessary.
      * Thread is registered only once, at the first arrival at this method.
-     * @throws IllegalCallerException when called by a registered producer with {@code fromProducerContext == false}
-     * or vice versa
+     *
      * @param fromProducerContext flag to check for specific context
+     * @throws IllegalCallerException when called by a registered producer with {@code fromProducerContext == false}
+     *                                or vice versa
      */
     private void checkThreadRegistered(boolean fromProducerContext) {
-        if (pIdThreadLocal.get() == -1 && cIdThreadLocal.get() == -1) {
+        if (pIdTL.get() == -1 && cIdTL.get() == -1) {
             // new thread, need to register
             if (fromProducerContext) {
                 // register as producer
                 int id = tryInitId(true);
-                pIdThreadLocal.set(id);
+                pIdTL.set(id);
 
                 // init access list and bind producer
-                List<SCPool> accessListTemplate = new ArrayList<>(allSCPools);
-                Collections.shuffle(accessListTemplate); // shuffle for better workload distribution
-                pAccessListThreadLocal.set(new CopyOnWriteArrayList<>(accessListTemplate));
-                pAccessListThreadLocal.get().forEach(scPool -> registerCurrentThreadAsProducer(scPool, id));
+                List<SCPool> template = new ArrayList<>(allSCPools);
+                Collections.shuffle(template); // shuffle for better workload distribution
+                pAccessListTL.set(new CopyOnWriteArrayList<>(template));
+                pAccessListTL.get().forEach(pool -> regCurrentThreadAsProducer(pool, id));
             } else {
                 // register as consumer
                 int id = tryInitId(false);
-                cIdThreadLocal.set(id);
+                cIdTL.set(id);
 
                 // init access list and bind owner
-                List<SCPool> accessListTemplate = new ArrayList<>(allSCPools);
-                SCPool myPool = accessListTemplate.remove(id);
-                registerCurrentThreadAsOwner(myPool, id);
-                cSCPoolThreadLocal.set(myPool);
-                Collections.shuffle(accessListTemplate);
-                cAccessListThreadLocal.set(new CopyOnWriteArrayList<>(accessListTemplate));
+                List<SCPool> template = new ArrayList<>(allSCPools);
+                SCPool myPool = template.remove(id);
+                regCurrentThreadAsOwner(myPool, id);
+                cSCPoolTL.set(myPool);
+                Collections.shuffle(template);
+                cAccessListTL.set(new CopyOnWriteArrayList<>(template));
             }
-        } else if (pIdThreadLocal.get() != -1 && !fromProducerContext) {
+        } else if (pIdTL.get() != -1 && !fromProducerContext) {
             // registered producer appeared in a consumer context
             throw new IllegalCallerException("Already registered producer called from consumer context");
-        } else if (cIdThreadLocal.get() != -1 && fromProducerContext) {
+        } else if (cIdTL.get() != -1 && fromProducerContext) {
             // registered consumer appeared in a producer context
             throw new IllegalCallerException("Already registered consumer called from producer context");
         }
@@ -171,6 +176,7 @@ public abstract class AbstractTaskPool implements TaskPool {
 
     /**
      * Inits a unique id for the current thread.
+     *
      * @param isProducer producer/consumer flag
      * @return unique id for producer/consumer
      */
@@ -185,7 +191,8 @@ public abstract class AbstractTaskPool implements TaskPool {
             if (currentCount >= max) {
                 throw new IllegalStateException("Too many " + (isProducer ? "producers" : "consumers"));
             }
-        } while (!count.compareAndSet(currentCount, currentCount + 1) && !Thread.currentThread().isInterrupted());
+        } while (!count.compareAndSet(currentCount, currentCount + 1)
+                && !Thread.currentThread().isInterrupted());
 
         return currentCount;
     }

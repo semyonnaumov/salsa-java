@@ -21,9 +21,8 @@ public class TaskPoolExecutor extends AbstractExecutorService {
             Worker consumer = new Worker(i, backoffStartTimeout);
             workers.add(consumer);
         }
-        consumers = Collections.unmodifiableList(workers);
 
-        ThreadUtil.logMajorAction("starting workers: " + consumers.stream().map(Thread::getName).collect(Collectors.toList()));
+        consumers = Collections.unmodifiableList(workers);
         consumers.forEach(Thread::start);
     }
 
@@ -41,7 +40,7 @@ public class TaskPoolExecutor extends AbstractExecutorService {
         @Override
         public void run() {
             if (backoffStartTimeout > 0) {
-                // backoffed run
+                // back-offed run
                 Backoff backoff = new Backoff(backoffStartTimeout, backoffStartTimeout * 3, backoffStartTimeout * 2000);
 
                 while (!this.isInterrupted()) {
@@ -103,35 +102,35 @@ public class TaskPoolExecutor extends AbstractExecutorService {
 
     private static class Backoff {
         private static final int SMALL_PRIME = 7;
-        private final int minStartBackoffNs;
-        private final int maxStartBackoffNs;
-        private final int maxBackoffNs;
-        private int currentBackoffNs; // backoff value
+        private final int minStartTimeoutNs;
+        private final int maxStartTimeoutNs;
+        private final int maxTimeoutNs;
+        private int currentTimeoutNs; // backoff value
         private int i; // backoff exponent
 
-        private Backoff(int minStartBackoffNs, int maxStartBackoffNs, int maxBackoffNs) {
-            this.minStartBackoffNs = minStartBackoffNs;
-            this.maxStartBackoffNs = maxStartBackoffNs;
-            this.maxBackoffNs = maxBackoffNs;
-            currentBackoffNs = minStartBackoffNs + ThreadLocalRandom.current().nextInt(maxStartBackoffNs);
+        private Backoff(int minStartTimeoutNs, int maxStartTimeoutNs, int maxTimeoutNs) {
+            this.minStartTimeoutNs = minStartTimeoutNs;
+            this.maxStartTimeoutNs = maxStartTimeoutNs;
+            this.maxTimeoutNs = maxTimeoutNs;
+            currentTimeoutNs = minStartTimeoutNs + ThreadLocalRandom.current().nextInt(maxStartTimeoutNs);
             i = 1;
         }
 
         private void backoff() {
-            if (currentBackoffNs < maxBackoffNs) {
-                currentBackoffNs = Math.min((int) Math.pow(SMALL_PRIME + currentBackoffNs, i), maxBackoffNs);
+            if (currentTimeoutNs < maxTimeoutNs) {
+                currentTimeoutNs = Math.min((int) Math.pow(SMALL_PRIME + currentTimeoutNs, i), maxTimeoutNs);
             }
 
             long startTime = System.nanoTime();
             long elapsedNanos = System.nanoTime() - startTime;
             // busy wait on backoff
-            while (elapsedNanos < currentBackoffNs && !Thread.currentThread().isInterrupted()) {
+            while (elapsedNanos < currentTimeoutNs && !Thread.currentThread().isInterrupted()) {
                 elapsedNanos = System.nanoTime() - startTime;
             }
         }
 
         private void flush() {
-            currentBackoffNs = ThreadLocalRandom.current().nextInt(minStartBackoffNs, maxStartBackoffNs);
+            currentTimeoutNs = ThreadLocalRandom.current().nextInt(minStartTimeoutNs, maxStartTimeoutNs);
             i = 1;
         }
     }

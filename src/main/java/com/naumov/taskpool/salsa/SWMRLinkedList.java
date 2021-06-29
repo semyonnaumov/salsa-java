@@ -2,7 +2,7 @@ package com.naumov.taskpool.salsa;
 
 import java.util.function.Predicate;
 
-public interface SWMRList<E> extends Iterable<E> {
+public interface SWMRLinkedList<E> extends Iterable<E> {
 
     /**
      * Adds the {@code item} to the list
@@ -42,5 +42,5 @@ public interface SWMRList<E> extends Iterable<E> {
      * Linearizable iterator.
      * @return an iterator
      */
-    SWMRListIterator<E> consistentIterator();
+    SWMRLinkedListIterator<E> consistentIterator();
 }

@@ -25,10 +25,10 @@ public class BenchmarkSalsa {
 
     @State(Scope.Benchmark)
     public static class ExecutorWrapper {
-        @Param({"SALSA", "FJP", "TPE"})
+        @Param({"SALSA", "MSQ", "FJP", "TPE"})
         public String type;
 
-        @Param({"1", "2", "4", "6", "8"})
+        @Param({"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"})
         public int nConsumers;
 
         ExecutorService service;
@@ -57,15 +57,15 @@ public class BenchmarkSalsa {
         }
     }
 
-//    @Benchmark
-//    @BenchmarkMode(Mode.Throughput) // submission throughput
-//    public Future<Double> submit(ExecutorWrapper e, final Scratch s) throws InterruptedException {
-//        return e.service.submit(new Task(s));
-//    }
+    @Benchmark
+    @BenchmarkMode(Mode.Throughput)
+    public Future<Double> submissionThroughput(ExecutorWrapper e, final Scratch s) throws InterruptedException {
+        return e.service.submit(new Task(s));
+    }
 
     @Benchmark
-    @BenchmarkMode(Mode.Throughput) // throughput
-    public double submitAndGetResult(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
+    @BenchmarkMode(Mode.Throughput)
+    public double throughput(ExecutorWrapper e, final Scratch s) throws InterruptedException, ExecutionException {
         return e.service.submit(new Task(s)).get();
     }
 

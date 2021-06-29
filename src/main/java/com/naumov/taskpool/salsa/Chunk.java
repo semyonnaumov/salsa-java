@@ -11,9 +11,12 @@ import java.util.concurrent.atomic.AtomicStampedReference;
  */
 public class Chunk {
     private final int chunkSize;
-    private final AtomicStampedReference<Integer> owner; // stamped to prevent ABA during steal-back
-                                                         // allows only values from constant pool: [-128, 127]
-                                                         // since boxed Integers are compared by reference
+    /*
+     * Owner is stamped to prevent ABA during steal-back.
+     * Allows only values from constant pool: [-128, 127] since boxed Integers
+     * are compared by reference. Initial stamp is 0.
+     */
+    private final AtomicStampedReference<Integer> owner;
     private final AtomicReferenceArray<Runnable> tasks;
 
     public Chunk(int chunkSize, int owner) {

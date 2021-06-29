@@ -7,12 +7,12 @@ import java.util.Set;
 
 import static org.junit.Assert.*;
 
-public class SWMRListImplTest {
+public class SWMRLinkedListImplTest {
 
     @Test
     public void seqTestWithForeach() {
         Set<Object> reference = new HashSet<>();
-        SWMRListImpl<Object> list = new SWMRListImpl<>();
+        SWMRLinkedListImpl<Object> list = new SWMRLinkedListImpl<>();
 
         Object node0 = new Object();
         Object node1 = new Object();
@@ -56,7 +56,7 @@ public class SWMRListImplTest {
     @Test
     public void seqTestWithSalsaIterator() {
         Set<Object> reference = new HashSet<>();
-        SWMRListImpl<Object> list = new SWMRListImpl<>();
+        SWMRLinkedListImpl<Object> list = new SWMRLinkedListImpl<>();
 
         Object node0 = new Object();
         Object node1 = new Object();
@@ -73,7 +73,7 @@ public class SWMRListImplTest {
         assertTrue(list.contains(node1));
         assertTrue(list.contains(node2));
 
-        SWMRListIterator<Object> it = list.consistentIterator();
+        SWMRLinkedListIterator<Object> it = list.consistentIterator();
         int c0 = 0;
         Object nextItem0 = it.next();
         while (nextItem0 != null) {
@@ -105,7 +105,7 @@ public class SWMRListImplTest {
 
     @Test
     public void seqRemoveTest() {
-        SWMRListImpl<String> list = new SWMRListImpl<>();
+        SWMRLinkedListImpl<String> list = new SWMRLinkedListImpl<>();
 
         String item0 = "aaaaaaa";
         String item1 = "aaaaaaa";
@@ -129,7 +129,7 @@ public class SWMRListImplTest {
 
     @Test
     public void seqCleanupTest() {
-        SWMRListImpl<String> list = new SWMRListImpl<>();
+        SWMRLinkedListImpl<String> list = new SWMRLinkedListImpl<>();
 
         String item0 = "aaaaaaa";
         String item1 = "aaaaaaa";
@@ -145,7 +145,7 @@ public class SWMRListImplTest {
 
         list.cleanup(i -> i.contains("a"));
 
-        SWMRListIterator<String> it = list.consistentIterator();
+        SWMRLinkedListIterator<String> it = list.consistentIterator();
         String next = it.next();
         assertEquals(item3, next);
         assertNull(it.next());

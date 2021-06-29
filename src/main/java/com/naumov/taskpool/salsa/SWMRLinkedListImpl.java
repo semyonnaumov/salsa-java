@@ -5,14 +5,14 @@ import java.util.NoSuchElementException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 
-public class SWMRListImpl<E> implements SWMRList<E> {
+public class SWMRLinkedListImpl<E> implements SWMRLinkedList<E> {
 
     private final AtomicLong ownerId = new AtomicLong(-1L); // owner id
     private final ListNode head;
     private final ListNode tail;
     private final int cleanupCycles;
 
-    public SWMRListImpl() {
+    public SWMRLinkedListImpl() {
         head = new ListNode(null);
         tail = new ListNode(null);
         head.next = tail;
@@ -20,7 +20,7 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         this.cleanupCycles = Integer.MAX_VALUE; // total cleanup when unspecified
     }
 
-    public SWMRListImpl(int cleanupCycles) {
+    public SWMRLinkedListImpl(int cleanupCycles) {
         head = new ListNode(null);
         tail = new ListNode(null);
         head.next = tail;
@@ -28,7 +28,6 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         this.cleanupCycles = cleanupCycles;
     }
 
-    // inserts items in the end of the list (before the tail) in O(1)
     @Override
     public void add(E item) {
         checkOwner();
@@ -38,20 +37,17 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         listNode.next = tail;
         listNode.prev = tail.prev;
         tail.prev = listNode;
-        listNode.prev.next = listNode; // <--- commit
+        listNode.prev.next = listNode; // <--- commit #1
 
-        // physically delete deletion-pending node
+        // physically delete deletion-pending node if exists
         if (listNode.prev != head && listNode.prev.deleted) {
             ListNode beforeDeleted = listNode.prev.prev;
             listNode.prev.prev = null; // unlink deleted node backwards
             listNode.prev = beforeDeleted;
-            beforeDeleted.next = listNode; // <--- commit
+            beforeDeleted.next = listNode; // <--- commit #2
         }
     }
 
-    // removes the item, if found in list
-    // first removes logically, then, if it's not the last node in the list - physically
-    // the last logically removed node is removed physically in add() method
     @Override
     public boolean remove(E item) {
         checkOwner();
@@ -62,12 +58,12 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         while (beforeDeleted.next != tail) {
             if (!beforeDeleted.next.deleted && beforeDeleted.next.item.equals(item)) {
                 // found not deleted node with the item
-                beforeDeleted.next.deleted = true; // <-- commit 1
+                beforeDeleted.next.deleted = true; // <-- commit #1
                 if (beforeDeleted.next.next != tail) {
                     // not last node - remove physically
                     beforeDeleted.next.prev = null; // unlink deleted node backwards
                     beforeDeleted.next.next.prev = beforeDeleted;
-                    beforeDeleted.next = beforeDeleted.next.next; // <-- commit 2
+                    beforeDeleted.next = beforeDeleted.next.next; // <-- commit #2
                 }
                 return true;
             }
@@ -145,7 +141,7 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         if (Thread.currentThread().getId() == ownerId.get()) return;
         if (ownerId.get() == -1L && ownerId.compareAndSet(-1L, Thread.currentThread().getId())) return;
 
-        throw new UnsupportedOperationException(SWMRListImpl.class.getSimpleName()
+        throw new UnsupportedOperationException(SWMRLinkedListImpl.class.getSimpleName()
                 + " instance can only be modified by owner thread.");
     }
 
@@ -155,8 +151,8 @@ public class SWMRListImpl<E> implements SWMRList<E> {
     }
 
     @Override
-    public SWMRListIterator<E> consistentIterator() {
-        return new StrongIterator();
+    public SWMRLinkedListIterator<E> consistentIterator() {
+        return new ConsistentIterator();
     }
 
     private class ListNode {
@@ -170,8 +166,7 @@ public class SWMRListImpl<E> implements SWMRList<E> {
         }
     }
 
-    // consistent iterator
-    private class StrongIterator implements SWMRListIterator<E> {
+    private class ConsistentIterator implements SWMRLinkedListIterator<E> {
         private ListNode returnCandidate = head.next;
 
         @Override
