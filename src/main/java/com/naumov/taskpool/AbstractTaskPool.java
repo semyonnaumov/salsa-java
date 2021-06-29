@@ -110,7 +110,7 @@ public abstract class AbstractTaskPool implements TaskPool {
             }
 
             // no tasks found - validate emptiness
-//            if (isEmpty()) return null; // todo unused when consumers always retry to take a task
+            if (isEmpty()) return null; // todo unused when consumers always retry to take a task
         }
 
         return null;
